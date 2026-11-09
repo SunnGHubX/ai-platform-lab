@@ -57,6 +57,25 @@ jobs:
       - name: install terraform (verified release)
         run: ./.github/scripts/install-terraform.sh
 
+      # Exercises proven on a live cluster (e.g. 20 zero-trust, 25 red-team) run the full e2e.
+      - name: e2e dependencies (only for exercises that need a cluster)
+        if: steps.ex.outputs.id != 'all'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EX: ${{ steps.ex.outputs.id }}
+        run: |
+          needs_cluster=$(python3 -c "import sys; sys.path.insert(0, 'study/checks'); import check; \
+            print(any('kind' in c.get('needs', []) for c in check.load_spec()['$EX']['checks']))")
+          if [ "$needs_cluster" = "True" ]; then
+            pip install -r labs/04-mlflow/requirements.txt -r labs/06-opentelemetry/requirements.txt
+            if ! command -v kind >/dev/null; then
+              cd "$RUNNER_TEMP"
+              gh release download --repo kubernetes-sigs/kind --pattern 'kind-linux-amd64' --pattern 'kind-linux-amd64.sha256sum'
+              sha256sum --check kind-linux-amd64.sha256sum
+              sudo install -m 0755 kind-linux-amd64 /usr/local/bin/kind
+            fi
+          fi
+
       - name: run checks (single exercise, strict)
         if: steps.ex.outputs.id != 'all'
         run: python3 study/checks/check.py "${{ steps.ex.outputs.id }}" --strict
