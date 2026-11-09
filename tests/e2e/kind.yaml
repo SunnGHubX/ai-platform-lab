@@ -2,3 +2,13 @@ kind: Cluster
 apiVersion: kind.x-k8s.io/v1alpha4
 nodes:
   - role: control-plane
+    # MLflow and OTLP clients reuse keep-alive connections, which `kubectl port-forward` drops under load.
+    # Expose them as NodePorts mapped to the host instead (gateway stays on port-forward: its
+    # NetworkPolicy correctly rejects NodePort traffic from outside the allowed namespaces).
+    extraPortMappings:
+      - containerPort: 30500   # mlflow
+        hostPort: 15000
+        listenAddress: 127.0.0.1
+      - containerPort: 30318   # otel-collector OTLP/HTTP
+        hostPort: 14318
+        listenAddress: 127.0.0.1

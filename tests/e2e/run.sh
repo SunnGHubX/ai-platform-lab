@@ -127,8 +127,9 @@ endgroup
 group "port-forwards"
 port_forward inference inference-gateway 18080:80
 port_forward monitoring kps-prometheus 19090:9090
-port_forward mlops mlflow 15000:5000
-port_forward observability otel-collector-opentelemetry-collector 14318:4318
+kubectl -n mlops patch svc mlflow -p '{"spec":{"type":"NodePort","ports":[{"name":"http","port":5000,"nodePort":30500}]}}'
+kubectl -n observability patch svc otel-collector-opentelemetry-collector \
+  -p '{"spec":{"type":"NodePort","ports":[{"name":"otlp-http","port":4318,"nodePort":30318}]}}'
 for p in 18080 19090 15000 14318; do wait_port "$p"; done
 endgroup
 
