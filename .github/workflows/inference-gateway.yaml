@@ -1,0 +1,106 @@
+name: inference-gateway
+
+on:
+  push:
+    branches: [main]
+    paths: ["services/inference-gateway/**", ".github/workflows/inference-gateway.yaml"]
+  pull_request:
+    paths: ["services/inference-gateway/**", ".github/workflows/inference-gateway.yaml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  IMAGE: ghcr.io/sunnghubx/inference-gateway
+  SERVICE_DIR: services/inference-gateway
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: services/inference-gateway
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: services/inference-gateway/requirements-dev.txt
+      - run: pip install -r requirements-dev.txt
+      - name: lint (ruff incl. bandit-style S rules)
+        run: ruff check .
+      - name: unit tests (90% coverage gate)
+        run: pytest
+
+  image:
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write        # push to GHCR (main only)
+      id-token: write        # cosign keyless signing (main only)
+      security-events: write # upload Trivy SARIF
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: build
+        run: |
+          VERSION=$(cat $SERVICE_DIR/VERSION)
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          docker build -t "$IMAGE:$VERSION" -t "$IMAGE:sha-${GITHUB_SHA::7}" $SERVICE_DIR
+
+      - name: trivy image scan (fail on fixable CRITICAL)
+        run: |
+          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v "$PWD:/out" aquasec/trivy:latest \
+            image --severity HIGH,CRITICAL --ignore-unfixed --format sarif --output /out/trivy-image.sarif "$IMAGE:$VERSION"
+          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy:latest \
+            image --severity CRITICAL --ignore-unfixed --exit-code 1 "$IMAGE:$VERSION"
+
+      - name: upload scan to GitHub code scanning
+        if: always() && hashFiles('trivy-image.sarif') != ''
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-image.sarif
+          category: trivy-image
+
+      - name: SBOM (CycloneDX)
+        run: |
+          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v "$PWD:/out" aquasec/trivy:latest \
+            image --format cyclonedx --output /out/sbom.cdx.json "$IMAGE:$VERSION"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: inference-gateway-sbom
+          path: sbom.cdx.json
+
+      # ---------------- release: main only ----------------
+      - name: login to GHCR
+        if: github.ref == 'refs/heads/main'
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      - name: push
+        if: github.ref == 'refs/heads/main'
+        run: |
+          docker push "$IMAGE:sha-${GITHUB_SHA::7}"
+          docker push "$IMAGE:$VERSION"
+          echo "DIGEST=$(docker inspect --format='{{index .RepoDigests 0}}' $IMAGE:$VERSION)" >> "$GITHUB_ENV"
+
+      # No third-party installer action: download the release binary and verify its checksum.
+      # Runs on PRs too so the install path is tested before main depends on it.
+      - name: install cosign (verified release binary)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/cosign" && cd "$RUNNER_TEMP/cosign"
+          gh release download --repo sigstore/cosign --pattern 'cosign-linux-amd64' --pattern 'cosign_checksums.txt'
+          grep ' cosign-linux-amd64$' cosign_checksums.txt | sha256sum --check --strict
+          sudo install -m 0755 cosign-linux-amd64 /usr/local/bin/cosign
+          cosign version
+
+      - name: sign image + attest SBOM (keyless, GitHub OIDC)
+        if: github.ref == 'refs/heads/main'
+        run: |
+          cosign sign --yes "$DIGEST"
+          cosign attest --yes --type cyclonedx --predicate sbom.cdx.json "$DIGEST"

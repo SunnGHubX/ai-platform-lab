@@ -1,4 +1,4 @@
-# AI Platform Lab
+# Sunn Platform Lab
 
 > A hands-on, GitOps-driven lab for running AI workloads in production on Kubernetes:
 > **GitOps → model serving → GPU scheduling → AI observability → AI autoscaling.**
@@ -52,17 +52,37 @@ flowchart LR
 
 More detail in [docs/architecture.md](docs/architecture.md).
 
+## What's inside
+
+| Area | What | Tested by |
+|---|---|---|
+| **GitOps platform** | Argo CD app-of-apps → Prometheus/Grafana, KEDA, OTel, MLflow, vLLM, Triton, gateway, SLO rules | kubeconform, Conftest |
+| **Terraform** ([`terraform/`](terraform)) | dev/staging/prod on AWS: VPC, EKS + GPU pool, service catalog with least-privilege Pod Identity | `terraform test` (mocked AWS), tflint, checkov |
+| **SRE** ([`sre/`](sre)) | SLOs, multi-window burn-rate alerts, runbooks, error-budget policy, chaos lab, postmortem/ADR/design templates | `promtool test rules`, drift check |
+| **DevSecOps** ([`SECURITY.md`](SECURITY.md)) | gitleaks, CodeQL, Trivy (image/IaC/deps), SBOM, cosign keyless signing, Dependabot, OPA policies, hardened manifests | CI gates |
+| **Service** ([`services/inference-gateway`](services/inference-gateway)) | Auth, rate limiting, input caps, SLI metrics in front of vLLM | pytest (90% coverage gate), ruff |
+| **Network-as-code** ([`network/`](network)) | Spine-leaf eBGP fabric → Arista EOS + Junos configs, RoCEv2 lossless profile on GPU leaves | pytest unit + golden-config tests |
+| **Ansible** ([`ansible/`](ansible)) | On-prem GPU node prep (driver, container toolkit, sysctls) + fabric deploy with commit-confirmed | ansible-lint (production profile) |
+| **Study** ([`study/`](study)) | 8-week plan mapped to my background, 13 graded exercises, system-design and question bank | n/a |
+
+Run every suite: `make test`.
+
 ## Repo layout
 
 ```
 terraform/          AWS foundation: VPC, EKS + GPU pool, per-service IAM/SQS/S3/RDS (dev/staging/prod)
-bootstrap/          kind cluster config + one-shot Argo CD install
-gitops/root-app.yaml        core app-of-apps (monitoring, KEDA, OTel, MLflow)
-gitops/root-inference.yaml  opt-in app-of-apps (vLLM, Triton)
-gitops/apps*/               one Argo CD Application per component
+gitops/             Argo CD app-of-apps (core + opt-in inference)
 platform/           Helm values + Kustomize manifests the Applications point at
-labs/NN-<tool>/     standalone, step-by-step lab per tool
-scripts/            load generator & helpers
+services/           application code (inference-gateway) with tests + secure Dockerfile
+policy/             OPA/Rego policies for Kubernetes manifests + unit tests
+sre/                SLO rules (source of truth), promtool tests, generator
+docs/               architecture, ADRs, runbooks
+templates/          postmortem, runbook, ADR, design-doc templates
+network/            netgen: fabric YAML → multi-vendor switch configs
+ansible/            GPU node role + network deploy playbooks
+labs/NN-<tool>/     standalone, step-by-step lab per tool (incl. 10 chaos engineering)
+study/              study plan, exercises, interview prep
+bootstrap/, scripts/  kind cluster + Argo CD bootstrap, load generator
 ```
 
 ## Running on AWS
@@ -75,7 +95,7 @@ scripts/            load generator & helpers
 
 ```bash
 # 0. Point the Argo CD Applications at YOUR fork
-make set-repo REPO=https://github.com/<you>/ai-platform-lab.git
+make set-repo REPO=https://github.com/<you>/sunn-platform-lab.git
 
 # 1. Local cluster (skip if you already have one)
 make cluster
@@ -120,6 +140,7 @@ Renovate/Dependabot-style bumps are a great first PR.
 - [ ] Kubeflow Pipelines → MLflow registry → Argo CD promotion flow
 - [ ] Dynamo disaggregated serving on a multi-GPU node
 - [ ] Tempo/Loki for traces & logs behind the OTel Collector
+- [ ] More in [study/exercises](study/exercises): Karpenter, ApplicationSets, Kyverno verifyImages, EVPN-VXLAN, MIG
 
 ## License
 

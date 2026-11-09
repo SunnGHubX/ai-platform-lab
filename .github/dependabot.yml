@@ -1,0 +1,26 @@
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ["*"]
+
+  - package-ecosystem: pip
+    directory: /services/inference-gateway
+    schedule:
+      interval: weekly
+
+  - package-ecosystem: docker
+    directory: /services/inference-gateway
+    schedule:
+      interval: weekly
+
+  - package-ecosystem: terraform
+    directories:
+      - /terraform/modules/network
+      - /terraform/modules/eks-cluster
+    schedule:
+      interval: weekly

@@ -30,7 +30,7 @@ python3 scripts/loadtest.py --concurrency 64 --requests 500
 kubectl -n inference get hpa keda-hpa-vllm -w
 ```
 
-Watch the **vLLM – AI Platform Lab** dashboard in Grafana: waiting requests climb → KEDA adds replicas (if GPUs are free) → TTFT recovers.
+Watch the **vLLM – Sunn Platform Lab** dashboard in Grafana: waiting requests climb → KEDA adds replicas (if GPUs are free) → TTFT recovers.
 
 ## Exercises
 

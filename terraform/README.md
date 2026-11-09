@@ -1,4 +1,4 @@
-# Terraform — AWS foundation for the AI Platform Lab
+# Terraform — AWS foundation for the Sunn Platform Lab
 
 This provisions what the GitOps layer runs **on**: an account-isolated VPC, an EKS cluster with a GPU node pool, and the AWS resources each microservice needs (images, queues, buckets, secrets, databases). Argo CD then deploys everything *inside* the cluster.
 

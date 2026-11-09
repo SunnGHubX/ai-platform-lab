@@ -1,0 +1,7 @@
+collections:
+  - name: ansible.posix
+  - name: community.general
+  - name: arista.eos
+  - name: junipernetworks.junos
+  - name: juniper.device
+  - name: ansible.netcommon

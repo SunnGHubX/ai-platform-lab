@@ -1,14 +1,15 @@
 SHELL := /usr/bin/env bash
-CLUSTER ?= ai-platform-lab
+CLUSTER ?= sunn-platform-lab
 
-.PHONY: help set-repo cluster bootstrap inference argocd-password argocd-ui grafana-ui mlflow-ui vllm-api lint teardown
+
+.PHONY: test test-terraform test-policy test-slo test-network test-gateway help set-repo cluster bootstrap inference argocd-password argocd-ui grafana-ui mlflow-ui vllm-api lint teardown
 
 help: ## Show targets
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "  \033[36m%-16s\033[0m %s\n",$$1,$$2}'
 
-set-repo: ## Point all Argo CD Applications at your fork: make set-repo REPO=https://github.com/<you>/ai-platform-lab.git
-	@test -n "$(REPO)" || (echo "usage: make set-repo REPO=https://github.com/<you>/ai-platform-lab.git" && exit 1)
-	@grep -rl 'https://github.com/REPLACE_ME/ai-platform-lab.git' gitops | xargs sed -i.bak 's#https://github.com/REPLACE_ME/ai-platform-lab.git#$(REPO)#g'
+set-repo: ## Point all Argo CD Applications at your fork: make set-repo REPO=https://github.com/<you>/sunn-platform-lab.git
+	@test -n "$(REPO)" || (echo "usage: make set-repo REPO=https://github.com/<you>/sunn-platform-lab.git" && exit 1)
+	@grep -rl 'https://github.com/REPLACE_ME/sunn-platform-lab.git' gitops | xargs sed -i.bak 's#https://github.com/REPLACE_ME/sunn-platform-lab.git#$(REPO)#g'
 	@find gitops -name '*.bak' -delete
 	@echo "repoURL set to $(REPO) — commit and push."
 
@@ -42,3 +43,20 @@ lint: ## yamllint + kustomize build of every platform dir
 
 teardown: ## Delete the kind cluster
 	kind delete cluster --name $(CLUSTER)
+
+test: test-terraform test-policy test-slo test-network test-gateway ## Run every test suite (needs terraform + docker)
+
+test-terraform: ## terraform test with mocked AWS
+	$(MAKE) -C terraform test
+
+test-policy: ## Rego unit tests
+	docker run --rm -v "$(CURDIR):/p" -w /p openpolicyagent/conftest:latest verify --policy policy/kubernetes
+
+test-slo: ## promtool alert unit tests
+	docker run --rm -v "$(CURDIR):/w" -w /w/sre/slo/tests --entrypoint promtool prom/prometheus:latest test rules inference-slo.test.yaml
+
+test-network: ## netgen unit + golden tests
+	cd network && pytest -q
+
+test-gateway: ## inference-gateway unit tests
+	cd services/inference-gateway && pytest

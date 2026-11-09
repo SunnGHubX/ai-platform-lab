@@ -1,0 +1,50 @@
+name: security
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: "17 13 * * 1"   # weekly: catch newly published CVEs in unchanged code
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  secrets:
+    name: secret scan (gitleaks, full history)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - run: |
+          docker run --rm -v "$PWD:/repo" zricethezav/gitleaks:latest \
+            detect --source /repo --config /repo/.gitleaks.toml --redact --verbose
+
+  misconfig:
+    name: IaC + manifest misconfig (trivy)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: trivy config scan (report to code scanning)
+        run: |
+          docker run --rm -v "$PWD:/repo" aquasec/trivy:latest config /repo \
+            --severity HIGH,CRITICAL --format sarif --output /repo/trivy-config.sarif
+      - uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-config.sarif
+          category: trivy-config
+
+  dependencies:
+    name: dependency vulnerabilities (trivy fs)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          docker run --rm -v "$PWD:/repo" aquasec/trivy:latest fs /repo \
+            --scanners vuln --severity CRITICAL --ignore-unfixed --exit-code 1

@@ -12,3 +12,7 @@ kubeconfig*
 *.tfstate.*
 crash.log
 .terraform.tfstate.lock.info
+.pytest_cache/
+.coverage
+.ruff_cache/
+network/build/

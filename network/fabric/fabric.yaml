@@ -1,0 +1,47 @@
+# Source of truth for an on-prem AI cluster fabric: 2 spines, 4 leaves (2 GPU / RoCE), eBGP underlay.
+# Edit this, run `python3 -m netgen network/fabric/fabric.yaml`, review the diff in build/, push with Ansible.
+fabric:
+  name: ai-dc1
+  underlay_p2p_pool: 10.255.0.0/24     # /31 per spine-leaf link, allocated deterministically
+  loopback_pool: 10.254.0.0/24         # /32 router-id per device
+  spine_asn: 65000                     # all spines share one ASN (classic eBGP Clos)
+  leaf_asn_base: 65100                 # leaf N gets 65100 + N
+  mtu: 9214                            # jumbo frames for storage + RDMA traffic
+
+spines:
+  - name: spine1
+    platform: eos
+  - name: spine2
+    platform: eos
+
+leaves:
+  - name: leaf1
+    id: 1
+    platform: eos
+    role: compute
+    server_vlan: { id: 110, name: CPU_NODES, subnet: 10.110.1.0/24 }
+  - name: leaf2
+    id: 2
+    platform: junos
+    role: compute
+    server_vlan: { id: 120, name: CPU_NODES, subnet: 10.110.2.0/24 }
+  - name: gpu-leaf1
+    id: 3
+    platform: eos
+    role: gpu
+    rdma: true                         # RoCEv2: lossless class (PFC prio 3) + ECN marking
+    server_vlan: { id: 130, name: GPU_BACKEND, subnet: 10.130.1.0/24 }
+  - name: gpu-leaf2
+    id: 4
+    platform: eos
+    role: gpu
+    rdma: true
+    server_vlan: { id: 140, name: GPU_BACKEND, subnet: 10.130.2.0/24 }
+
+# Spine port N connects to leaf with id N; every leaf uses uplink ports 49 (spine1) and 50 (spine2).
+cabling:
+  spine_port_template:
+    eos: Ethernet{n}/1
+  leaf_uplink_ports:
+    eos: [Ethernet49/1, Ethernet50/1]
+    junos: [et-0/0/48, et-0/0/49]

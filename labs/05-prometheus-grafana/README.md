@@ -9,7 +9,7 @@ make grafana-ui      # http://localhost:3000  admin / prom-operator
 kubectl -n monitoring port-forward svc/kps-prometheus 9090:9090
 ```
 
-The **vLLM – AI Platform Lab** dashboard ships from `platform/vllm/vllm-dashboard.json`.
+The **vLLM – Sunn Platform Lab** dashboard ships from `platform/vllm/vllm-dashboard.json`.
 
 ## PromQL cheat sheet
 

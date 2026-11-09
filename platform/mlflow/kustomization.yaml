@@ -3,7 +3,7 @@ kind: Kustomization
 namespace: mlops
 labels:
   - pairs:
-      app.kubernetes.io/part-of: ai-platform-lab
+      app.kubernetes.io/part-of: sunn-platform-lab
 resources:
   - pvc.yaml
   - deployment.yaml

@@ -13,7 +13,7 @@ ENV_DIR = ../../envs/$(ENV)
 VARS    = -var-file=$(ENV_DIR)/common.tfvars -var-file=$(ENV_DIR)/$(STACK).tfvars
 PLAN    = $(ENV)-$(STACK).tfplan
 
-.PHONY: help guard init plan apply destroy plan-all apply-all fmt validate lint
+.PHONY: help guard init plan apply destroy plan-all apply-all fmt validate lint test
 
 help: ## Show targets
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "  \033[36m%-10s\033[0m %s\n",$$1,$$2}'
@@ -55,3 +55,8 @@ validate: ## terraform validate every module and stack (no backend, no credentia
 lint: ## tflint every module and stack
 	tflint --init
 	@for d in modules/* stacks/* envs/_global/bootstrap; do echo "== $$d"; tflint --chdir=$$d --config=$(CURDIR)/.tflint.hcl || exit 1; done
+
+test: ## terraform test (mocked AWS provider - no credentials, nothing created)
+	@for d in $$(find modules stacks -type d -name tests -exec dirname {} \;); do \
+	  echo "== $$d"; terraform -chdir=$$d init -backend=false -input=false >/dev/null && terraform -chdir=$$d test || exit 1; \
+	done

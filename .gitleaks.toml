@@ -1,0 +1,12 @@
+# Extends the default ruleset; allowlist only obvious test fixtures.
+[extend]
+useDefault = true
+
+[allowlist]
+description = "test fixtures and documentation placeholders"
+paths = [
+  '''services/inference-gateway/tests/.*''',
+]
+regexes = [
+  '''hf_xxx''',
+]

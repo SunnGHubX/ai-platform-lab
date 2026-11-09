@@ -1,0 +1,105 @@
+# Unit tests for alerting rules:  promtool test rules sre/slo/tests/inference-slo.test.yaml
+rule_files:
+  - ../rules/inference-slo.rules.yaml
+
+evaluation_interval: 1m
+
+tests:
+  # ~9% errors (100 ok + 10 failed per minute) -> 18x burn -> fast-burn page
+  - interval: 1m
+    input_series:
+      - series: 'gateway_requests_total{code="200"}'
+        values: '0+100x120'
+      - series: 'gateway_requests_total{code="500"}'
+        values: '0+10x120'
+    alert_rule_test:
+      - eval_time: 70m
+        alertname: InferenceAvailabilityFastBurn
+        exp_alerts:
+          - exp_labels:
+              severity: page
+              slo: inference-availability
+            exp_annotations:
+              summary: Inference error budget burning 14.4x too fast
+              description: More than 7.2% of gateway requests are failing over 1h and 5m. The 30-day error budget is gone in ~2 days at this rate.
+              runbook_url: https://github.com/SunnGHubX/sunn-platform-lab/blob/main/docs/runbooks/InferenceAvailabilityFastBurn.md
+      # 'for: 2m' means nothing fires in the first minute of breach
+      - eval_time: 1m
+        alertname: InferenceAvailabilityFastBurn
+        exp_alerts: []
+
+  # 0.1% errors -> healthy, no SLO alert of any kind
+  - interval: 1m
+    input_series:
+      - series: 'gateway_requests_total{code="200"}'
+        values: '0+999x120'
+      - series: 'gateway_requests_total{code="503"}'
+        values: '0+1x120'
+    alert_rule_test:
+      - eval_time: 70m
+        alertname: InferenceAvailabilityFastBurn
+        exp_alerts: []
+      - eval_time: 70m
+        alertname: InferenceAvailabilitySlowBurn
+        exp_alerts: []
+
+  # 4xx are client errors and must NOT burn the availability budget
+  - interval: 1m
+    input_series:
+      - series: 'gateway_requests_total{code="200"}'
+        values: '0+50x120'
+      - series: 'gateway_requests_total{code="429"}'
+        values: '0+50x120'
+    alert_rule_test:
+      - eval_time: 70m
+        alertname: InferenceAvailabilityFastBurn
+        exp_alerts: []
+
+  # 80% of requests slower than 2.5s -> latency fast burn
+  - interval: 1m
+    input_series:
+      - series: 'gateway_request_duration_seconds_bucket{le="2.5"}'
+        values: '0+20x120'
+      - series: 'gateway_request_duration_seconds_count'
+        values: '0+100x120'
+    alert_rule_test:
+      - eval_time: 70m
+        alertname: InferenceLatencyFastBurn
+        exp_alerts:
+          - exp_labels:
+              severity: page
+              slo: inference-latency
+            exp_annotations:
+              summary: Inference latency budget burning 14.4x too fast
+              description: More than 72% of requests are slower than 2.5s over 1h and 5m.
+              runbook_url: https://github.com/SunnGHubX/sunn-platform-lab/blob/main/docs/runbooks/InferenceLatencyFastBurn.md
+
+  # Recording rule math
+  - interval: 1m
+    input_series:
+      - series: 'gateway_requests_total{code="200"}'
+        values: '0+90x60'
+      - series: 'gateway_requests_total{code="502"}'
+        values: '0+10x60'
+    promql_expr_test:
+      - expr: round(slo:gateway_errors:ratio_rate5m, 0.001)   # rate() math is float; compare to 3 dp
+        eval_time: 30m
+        exp_samples:
+          - labels: '{}'
+            value: 0.1
+
+  # Queue backlog: 25 waiting for > 10m -> ticket
+  - interval: 1m
+    input_series:
+      - series: 'vllm:num_requests_waiting{pod="vllm-0"}'
+        values: '25x30'
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: VLLMQueueBacklog
+        exp_alerts:
+          - exp_labels:
+              severity: ticket
+            exp_annotations:
+              summary: vLLM has had more than 20 queued requests for 10 minutes
+              description: KEDA should be adding replicas. Check for GPU capacity (Pending pods) or a stuck ScaledObject.
+              runbook_url: https://github.com/SunnGHubX/sunn-platform-lab/blob/main/docs/runbooks/VLLMQueueBacklog.md

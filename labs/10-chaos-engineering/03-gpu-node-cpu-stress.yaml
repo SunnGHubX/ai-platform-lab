@@ -1,0 +1,16 @@
+apiVersion: chaos-mesh.org/v1alpha1
+kind: StressChaos
+metadata:
+  name: vllm-cpu-stress
+  namespace: inference
+spec:
+  mode: all
+  selector:
+    namespaces: [inference]
+    labelSelectors:
+      app.kubernetes.io/name: vllm
+  stressors:
+    cpu:
+      workers: 2
+      load: 90
+  duration: 10m
