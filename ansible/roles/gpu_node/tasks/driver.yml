@@ -1,0 +1,27 @@
+---
+- name: Install kernel headers for DKMS
+  ansible.builtin.apt:
+    name: "linux-headers-{{ ansible_facts['kernel'] }}"
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Install NVIDIA server driver
+  ansible.builtin.apt:
+    name:
+      - "{{ gpu_node_driver_package }}"
+      - "nvidia-utils-{{ gpu_node_driver_branch }}-server"
+    state: present
+  notify: Reboot for driver
+
+- name: Hold the driver so unattended upgrades can't break CUDA compatibility
+  ansible.builtin.dpkg_selections:
+    name: "{{ gpu_node_driver_package }}"
+    selection: hold
+
+- name: Enable persistence daemon (avoids multi-second init on every CUDA context)
+  ansible.builtin.systemd_service:
+    name: nvidia-persistenced
+    enabled: true
+    state: started
+  when: gpu_node_enable_persistence

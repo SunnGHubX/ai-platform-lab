@@ -1,0 +1,4 @@
+ansible_user: ubuntu
+ansible_become: true
+gpu_node_driver_branch: "580"
+gpu_node_enable_persistence: true

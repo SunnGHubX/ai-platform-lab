@@ -56,6 +56,9 @@ jobs:
       - name: terraform validate (every module + stack, no backend)
         run: make validate
 
+      - name: terraform test (unit tests, mocked AWS provider)
+        run: make test
+
       - uses: terraform-linters/setup-tflint@v4
 
       - name: tflint
@@ -67,3 +70,70 @@ jobs:
         run: |
           pip install --quiet checkov
           checkov -d . --framework terraform --compact --quiet --soft-fail
+
+  policy:
+    name: policy-as-code (OPA / Conftest)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: rego unit tests
+        run: docker run --rm -v "$PWD:/p" -w /p openpolicyagent/conftest:latest verify --policy policy/kubernetes --report notes
+      - name: enforce policies on every rendered platform component
+        run: |
+          for d in platform/*/; do
+            [ -f "$d/kustomization.yaml" ] || continue
+            echo "::group::$d"
+            kubectl kustomize "$d" | docker run --rm -i -v "$PWD:/p" -w /p openpolicyagent/conftest:latest test --policy policy/kubernetes --all-namespaces -
+            echo "::endgroup::"
+          done
+
+  sre:
+    name: SLO rules (promtool) + generated output drift
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: promtool check rules
+        run: docker run --rm -v "$PWD:/w" -w /w --entrypoint promtool prom/prometheus:latest check rules sre/slo/rules/*.rules.yaml
+      - name: promtool test rules (alert unit tests)
+        run: docker run --rm -v "$PWD:/w" -w /w/sre/slo/tests --entrypoint promtool prom/prometheus:latest test rules inference-slo.test.yaml
+      - name: generated PrometheusRule is up to date
+        run: |
+          pip install --quiet pyyaml
+          python3 sre/slo/build.py
+          git diff --exit-code platform/slo || { echo "::error::run 'python3 sre/slo/build.py' and commit platform/slo"; exit 1; }
+
+  network:
+    name: network-as-code (netgen unit + golden tests)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: network
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install pytest jinja2 pyyaml
+      - run: pytest -q
+      - name: render all configs (artifact for review)
+        run: python3 -m netgen fabric/fabric.yaml --out build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: fabric-configs
+          path: network/build/
+
+  ansible:
+    name: ansible-lint (production profile)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ansible
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install ansible-core ansible-lint
+      - run: ansible-galaxy collection install -r requirements.yml
+      - run: ansible-lint
+      - run: ansible-playbook --syntax-check playbooks/gpu_nodes.yml playbooks/network_deploy.yml

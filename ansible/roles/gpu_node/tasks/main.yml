@@ -1,0 +1,52 @@
+---
+- name: Assert supported OS
+  ansible.builtin.assert:
+    that:
+      - ansible_facts['distribution'] == 'Ubuntu'
+      - ansible_facts['distribution_major_version'] | int >= 22
+    fail_msg: gpu_node supports Ubuntu 22.04+ only
+
+- name: Detect NVIDIA GPUs on the PCI bus
+  ansible.builtin.shell:
+    cmd: set -o pipefail && lspci -nn | grep -i nvidia
+    executable: /bin/bash
+  register: gpu_node_lspci
+  changed_when: false
+  failed_when: gpu_node_lspci.rc not in [0, 1]
+
+- name: Fail early on hosts without a GPU
+  ansible.builtin.fail:
+    msg: "No NVIDIA GPU found on {{ inventory_hostname }} - wrong inventory group?"
+  when: gpu_node_lspci.rc != 0
+
+- name: Kernel modules and sysctls for Kubernetes networking
+  ansible.builtin.import_tasks: kernel.yml
+
+- name: Disable swap now
+  ansible.builtin.command: swapoff -a
+  when: ansible_facts['swaptotal_mb'] | int > 0
+  changed_when: true
+
+- name: Disable swap permanently
+  ansible.builtin.replace:
+    path: /etc/fstab
+    regexp: '^([^#].*\sswap\s.*)$'
+    replace: '# \1'
+
+- name: Install NVIDIA driver
+  ansible.builtin.import_tasks: driver.yml
+
+- name: Install and wire up NVIDIA Container Toolkit
+  ansible.builtin.import_tasks: container_toolkit.yml
+
+- name: Flush handlers before validation
+  ansible.builtin.meta: flush_handlers
+
+- name: Validate GPU visibility
+  ansible.builtin.command: nvidia-smi --query-gpu=name,driver_version,memory.total --format=csv,noheader
+  register: gpu_node_smi
+  changed_when: false
+
+- name: Report GPUs
+  ansible.builtin.debug:
+    msg: "{{ inventory_hostname }}: {{ gpu_node_smi.stdout_lines }}"

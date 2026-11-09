@@ -1,0 +1,10 @@
+---
+- name: Restart containerd
+  ansible.builtin.systemd_service:
+    name: containerd
+    state: restarted
+
+- name: Reboot for driver
+  ansible.builtin.reboot:
+    reboot_timeout: 900
+    msg: Rebooting to load NVIDIA driver

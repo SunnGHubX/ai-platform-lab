@@ -1,0 +1,23 @@
+apiVersion: chaos-mesh.org/v1alpha1
+kind: NetworkChaos
+metadata:
+  name: gateway-to-vllm-delay
+  namespace: inference
+spec:
+  action: delay
+  mode: all
+  selector:
+    namespaces: [inference]
+    labelSelectors:
+      app.kubernetes.io/name: inference-gateway
+  direction: to
+  target:
+    mode: all
+    selector:
+      namespaces: [inference]
+      labelSelectors:
+        app.kubernetes.io/name: vllm
+  delay:
+    latency: 800ms
+    jitter: 100ms
+  duration: 15m

@@ -1,0 +1,6 @@
+ansible_connection: ansible.netcommon.network_cli
+ansible_network_os: arista.eos.eos
+ansible_become: true
+ansible_become_method: enable
+ansible_user: "{{ lookup('ansible.builtin.env', 'NET_USER') }}"
+ansible_password: "{{ lookup('ansible.builtin.env', 'NET_PASSWORD') }}"

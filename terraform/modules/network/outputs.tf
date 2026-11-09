@@ -27,3 +27,12 @@ output "azs" {
   description = "AZs in use."
   value       = local.azs
 }
+
+output "subnet_cidrs" {
+  description = "Computed subnet CIDRs per tier (exposed so the carving logic is unit-testable)."
+  value = {
+    private = local.private_subnets
+    public  = local.public_subnets
+    intra   = local.intra_subnets
+  }
+}

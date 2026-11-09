@@ -1,0 +1,15 @@
+apiVersion: chaos-mesh.org/v1alpha1
+kind: DNSChaos
+metadata:
+  name: gateway-dns-error
+  namespace: inference
+spec:
+  action: error
+  mode: all
+  patterns:
+    - vllm.inference.svc.cluster.local
+  selector:
+    namespaces: [inference]
+    labelSelectors:
+      app.kubernetes.io/name: inference-gateway
+  duration: 5m

@@ -1,0 +1,40 @@
+---
+# Push configs rendered by `python3 -m netgen network/fabric/fabric.yaml`.
+# Always run with --check --diff first; CI never pushes to devices.
+- name: Deploy generated fabric configs (Arista EOS)
+  hosts: eos
+  gather_facts: false
+  serial: 1                 # one switch at a time keeps ECMP paths up during rollout
+  tasks:
+    - name: Apply rendered config
+      arista.eos.eos_config:
+        src: "{{ playbook_dir }}/../../network/build/{{ inventory_hostname }}.cfg"
+        save_when: modified
+        backup: true
+
+    - name: Verify BGP sessions are established
+      arista.eos.eos_command:
+        commands: show ip bgp summary | json
+      register: bgp
+      retries: 6
+      delay: 10
+      until: >-
+        bgp.stdout[0].vrfs.default.peers.values()
+        | selectattr('peerState', 'equalto', 'Established') | list | length
+        == bgp.stdout[0].vrfs.default.peers | length
+
+- name: Deploy generated fabric configs (Juniper Junos)
+  hosts: junos
+  gather_facts: false
+  serial: 1
+  tasks:
+    - name: Apply rendered config with commit confirmed (auto-rollback if we lose the box)
+      junipernetworks.junos.junos_config:
+        src: "{{ playbook_dir }}/../../network/build/{{ inventory_hostname }}.cfg"
+        src_format: set
+        confirm: 5
+        comment: "netgen deploy via ansible"
+
+    - name: Confirm the commit once the device is still reachable
+      junipernetworks.junos.junos_config:
+        confirm_commit: true

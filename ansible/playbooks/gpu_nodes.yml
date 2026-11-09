@@ -1,0 +1,7 @@
+---
+- name: Prepare on-prem GPU nodes for Kubernetes
+  hosts: gpu_nodes
+  serial: 1                 # one node at a time: never drain the whole GPU pool
+  max_fail_percentage: 0
+  roles:
+    - role: gpu_node

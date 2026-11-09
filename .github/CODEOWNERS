@@ -1,0 +1,4 @@
+# Every change needs the owner's review (enable "Require review from Code Owners" in branch protection).
+*                       @SunnGHubX
+/terraform/envs/prod/   @SunnGHubX
+/policy/                @SunnGHubX

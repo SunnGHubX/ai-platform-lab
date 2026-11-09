@@ -2,6 +2,8 @@ extends: default
 ignore: |
   .git/
 rules:
+  braces:
+    max-spaces-inside: 1
   line-length: disable
   document-start: disable
   truthy:

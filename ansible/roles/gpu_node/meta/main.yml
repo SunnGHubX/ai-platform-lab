@@ -1,0 +1,11 @@
+---
+galaxy_info:
+  role_name: gpu_node
+  author: SunnGHubX
+  description: Prepare Ubuntu hosts with NVIDIA GPUs to join a Kubernetes cluster
+  license: MIT
+  min_ansible_version: "2.16"
+  platforms:
+    - name: Ubuntu
+      versions: [jammy, noble]
+dependencies: []

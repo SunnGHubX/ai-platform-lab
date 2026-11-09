@@ -1,0 +1,4 @@
+ansible_connection: ansible.netcommon.netconf
+ansible_network_os: junipernetworks.junos.junos
+ansible_user: "{{ lookup('ansible.builtin.env', 'NET_USER') }}"
+ansible_password: "{{ lookup('ansible.builtin.env', 'NET_PASSWORD') }}"

@@ -1,0 +1,22 @@
+---
+- name: Load kernel modules now
+  community.general.modprobe:
+    name: "{{ item }}"
+    state: present
+  loop: "{{ gpu_node_kernel_modules }}"
+
+- name: Load kernel modules on boot
+  ansible.builtin.copy:
+    dest: /etc/modules-load.d/k8s.conf
+    content: "{{ gpu_node_kernel_modules | join('\n') }}\n"
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Apply sysctls
+  ansible.posix.sysctl:
+    name: "{{ item.key }}"
+    value: "{{ item.value }}"
+    sysctl_file: /etc/sysctl.d/90-gpu-node.conf
+    reload: true
+  loop: "{{ gpu_node_sysctls | dict2items }}"
