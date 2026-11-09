@@ -1,6 +1,13 @@
 # terraform test - the AWS provider is mocked, so these run in CI with no credentials.
 # They pin the module's *contract*: which resources exist and what IAM a service gets.
 mock_provider "aws" {
+  # The real data source renders JSON; the mock must too, or IAM resources fail JSON validation.
+  mock_data "aws_iam_policy_document" {
+    defaults = {
+      json = "{\"Version\":\"2012-10-17\",\"Statement\":[]}"
+    }
+  }
+
   mock_data "aws_caller_identity" {
     defaults = {
       account_id = "123456789012"

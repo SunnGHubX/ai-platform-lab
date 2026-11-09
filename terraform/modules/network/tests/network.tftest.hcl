@@ -1,5 +1,12 @@
 # terraform test - runs offline: the AWS provider is mocked, nothing is created.
 mock_provider "aws" {
+  # The real data source renders JSON; the mock must too, or IAM resources fail JSON validation.
+  mock_data "aws_iam_policy_document" {
+    defaults = {
+      json = "{\"Version\":\"2012-10-17\",\"Statement\":[]}"
+    }
+  }
+
   mock_data "aws_availability_zones" {
     defaults = {
       names = ["us-west-2a", "us-west-2b", "us-west-2c", "us-west-2d"]

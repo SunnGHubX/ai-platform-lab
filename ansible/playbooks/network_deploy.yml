@@ -29,12 +29,13 @@
   serial: 1
   tasks:
     - name: Apply rendered config with commit confirmed (auto-rollback if we lose the box)
-      junipernetworks.junos.junos_config:
+      juniper.device.config:
+        load: set
         src: "{{ playbook_dir }}/../../network/build/{{ inventory_hostname }}.cfg"
-        src_format: set
-        confirm: 5
+        confirmed: 5
         comment: "netgen deploy via ansible"
 
     - name: Confirm the commit once the device is still reachable
-      junipernetworks.junos.junos_config:
-        confirm_commit: true
+      juniper.device.config:
+        commit_empty_changes: true
+        comment: "netgen deploy confirmed"

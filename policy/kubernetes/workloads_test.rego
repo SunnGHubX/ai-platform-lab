@@ -40,7 +40,10 @@ test_digest_pinned_image_allowed if {
 }
 
 test_missing_memory_limit_denied if {
-	msgs := deny with input as with_container({"resources": {"limits": {"cpu": "1"}}})
+	# object.union merges nested objects, so remove resources first, then set CPU only
+	c := object.union(object.remove(good_deploy.spec.template.spec.containers[0], ["resources"]), {"resources": {"limits": {"cpu": "1"}}})
+	pod := object.union(good_deploy, {"spec": {"template": {"spec": {"containers": [c]}}}})
+	msgs := deny with input as pod
 	some msg in msgs
 	contains(msg, "memory limit")
 }

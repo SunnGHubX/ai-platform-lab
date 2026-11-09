@@ -1,5 +1,12 @@
 # Policy-as-code at the Terraform layer: environment rules enforced by variable validation.
 mock_provider "aws" {
+  # The real data source renders JSON; the mock must too, or IAM resources fail JSON validation.
+  mock_data "aws_iam_policy_document" {
+    defaults = {
+      json = "{\"Version\":\"2012-10-17\",\"Statement\":[]}"
+    }
+  }
+
   override_during = plan
 
   mock_data "aws_ssm_parameter" {

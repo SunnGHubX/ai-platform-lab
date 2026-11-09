@@ -82,10 +82,10 @@ tests:
       - series: 'gateway_requests_total{code="502"}'
         values: '0+10x60'
     promql_expr_test:
-      - expr: slo:gateway_errors:ratio_rate5m
+      - expr: round(slo:gateway_errors:ratio_rate5m, 0.001)   # rate() math is float; compare to 3 dp
         eval_time: 30m
         exp_samples:
-          - labels: 'slo:gateway_errors:ratio_rate5m'
+          - labels: '{}'
             value: 0.1
 
   # Queue backlog: 25 waiting for > 10m -> ticket
