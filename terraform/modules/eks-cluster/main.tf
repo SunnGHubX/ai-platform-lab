@@ -63,10 +63,10 @@ locals {
   # node *would* look like from ASG tags. Managed node groups do NOT copy tags to the ASG,
   # so we tag the ASG explicitly below.
   gpu_asg_tags = local.gpu_enabled ? {
-    "k8s.io/cluster-autoscaler/enabled"                              = "true"
-    "k8s.io/cluster-autoscaler/${var.name}"                          = "owned"
-    "k8s.io/cluster-autoscaler/node-template/label/workload"         = "gpu"
-    "k8s.io/cluster-autoscaler/node-template/taint/nvidia.com/gpu"   = "true:NoSchedule"
+    "k8s.io/cluster-autoscaler/enabled"                                = "true"
+    "k8s.io/cluster-autoscaler/${var.name}"                            = "owned"
+    "k8s.io/cluster-autoscaler/node-template/label/workload"           = "gpu"
+    "k8s.io/cluster-autoscaler/node-template/taint/nvidia.com/gpu"     = "true:NoSchedule"
     "k8s.io/cluster-autoscaler/node-template/resources/nvidia.com/gpu" = tostring(var.gpu_node_group.gpus_per_node)
   } : {}
 

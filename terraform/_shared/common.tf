@@ -54,8 +54,8 @@ variable "cost_center" {
 }
 
 locals {
-  name_prefix = "${var.project}-${var.environment}" # e.g. ai-platform-prod
-  ssm_prefix  = "/${var.project}/${var.environment}"  # cross-stack contract root
+  name_prefix = "${var.project}-${var.environment}"  # e.g. ai-platform-prod
+  ssm_prefix  = "/${var.project}/${var.environment}" # cross-stack contract root
 
   default_tags = {
     Project     = var.project
