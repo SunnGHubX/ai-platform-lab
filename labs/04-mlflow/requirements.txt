@@ -1,0 +1,3 @@
+# Client pinned to the server version in platform/mlflow/deployment.yaml
+mlflow==3.18.0
+scikit-learn

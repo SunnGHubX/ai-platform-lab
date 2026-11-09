@@ -1,0 +1,240 @@
+# Machine-checkable acceptance criteria for study/exercises/*.md
+# Run:  make exercise EX=01      (locally)   |   push a branch named ex/01-<anything>   (CI)
+#
+# Reusable commands
+x-commands:
+  tf_test: &tf_test
+    name: terraform test passes (mocked AWS)
+    run: make -C terraform test
+    needs: [terraform]
+  tf_validate: &tf_validate
+    name: terraform validate passes for every module/stack
+    run: make -C terraform validate
+    needs: [terraform]
+  conftest_verify: &conftest_verify
+    name: Rego unit tests pass (conftest verify)
+    run: docker run --rm -v "$PWD:/p" -w /p openpolicyagent/conftest:latest verify --policy policy/kubernetes
+    needs: [docker]
+  promtool: &promtool
+    name: promtool unit tests pass for every SLO test file
+    run: >-
+      for f in sre/slo/tests/*.test.yaml; do
+      docker run --rm -v "$PWD:/w" -w /w/sre/slo/tests --entrypoint promtool prom/prometheus:latest test rules "$(basename "$f")" || exit 1;
+      done
+    needs: [docker]
+  slo_drift: &slo_drift
+    name: generated platform/slo is up to date
+    run: python3 sre/slo/build.py && git diff --exit-code platform/slo
+    needs: [git]
+  netgen: &netgen
+    name: netgen tests pass
+    run: cd network && python3 -m pytest -q -p no:cacheprovider
+    needs: [python3]
+
+"01":
+  title: Add an ElastiCache (Redis) feature to the service catalog, TDD-style
+  checks:
+    - name: module declares a nullable `redis` variable
+      grep: { path: terraform/modules/microservice/variables.tf, pattern: 'variable "redis"' }
+    - name: module creates an ElastiCache replication group
+      grep: { path: terraform/modules/microservice/main.tf, pattern: 'resource "aws_elasticache_replication_group"' }
+    - name: encryption in transit and at rest
+      grep: { path: terraform/modules/microservice/main.tf, pattern: '(transit|at_rest)_encryption_enabled\s*=\s*true', min: 2 }
+    - name: tests written for redis (at least 3 mentions)
+      grep: { path: terraform/modules/microservice/tests/*.tftest.hcl, pattern: 'redis', min: 3 }
+    - name: services stack passes redis through
+      grep: { path: terraform/stacks/services/main.tf, pattern: 'redis\s*=\s*each\.value\.redis' }
+    - name: prod validation rule for redis
+      grep: { path: terraform/stacks/services/variables.tf, pattern: 'redis', min: 2 }
+    - name: dev enables redis for a service
+      grep: { path: terraform/envs/dev/services.tfvars, pattern: 'redis' }
+    - *tf_validate
+    - *tf_test
+
+"02":
+  title: Rename resources without destroying them (moved blocks)
+  checks:
+    - name: bucket renamed to aws_s3_bucket.data
+      grep: { path: terraform/modules/microservice/main.tf, pattern: 'resource "aws_s3_bucket" "data"' }
+    - name: old address is gone
+      absent: { path: terraform/modules/microservice/main.tf, pattern: 'resource "aws_s3_bucket" "this"' }
+    - name: moved block from the old address
+      grep: { path: terraform/modules/microservice/*.tf, pattern: 'from\s*=\s*aws_s3_bucket\.this' }
+    - name: moved blocks for dependent bucket resources too
+      grep: { path: terraform/modules/microservice/*.tf, pattern: '^\s*moved\s*\{', min: 4 }
+    - *tf_validate
+    - *tf_test
+
+"03":
+  title: Replace the GPU managed node group with Karpenter
+  checks:
+    - name: Karpenter submodule wired in Terraform
+      grep: { path: terraform/**/*.tf, pattern: 'terraform-aws-modules/eks/aws//modules/karpenter' }
+    - name: Argo CD app for Karpenter
+      file: gitops/apps/karpenter.yaml
+    - name: GPU NodePool (platform/karpenter/)
+      grep: { path: platform/karpenter/**/*.yaml, pattern: 'kind:\s*NodePool' }
+    - name: EC2NodeClass (platform/karpenter/)
+      grep: { path: platform/karpenter/**/*.yaml, pattern: 'kind:\s*EC2NodeClass' }
+    - name: GPU taint on Karpenter nodes
+      grep: { path: platform/karpenter/**/*.yaml, pattern: 'key:\s*nvidia\.com/gpu' }
+    - name: ASG tag workaround removed
+      absent: { path: terraform/modules/eks-cluster/main.tf, pattern: 'aws_autoscaling_group_tag' }
+    - name: ADR-0003 written
+      file: docs/adr/0003-*.md
+    - *tf_validate
+    - *tf_test
+
+"04":
+  title: "ApplicationSet: one template, three environments"
+  checks:
+    - name: ApplicationSet exists
+      grep: { path: gitops/appsets/*.yaml, pattern: 'kind:\s*ApplicationSet' }
+    - name: uses a matrix generator
+      grep: { path: gitops/appsets/*.yaml, pattern: 'matrix:' }
+    - name: overlays for dev, staging, prod
+      file: platform/vllm/overlays/prod/kustomization.yaml
+    - name: dev overlay
+      file: platform/vllm/overlays/dev/kustomization.yaml
+    - name: staging overlay
+      file: platform/vllm/overlays/staging/kustomization.yaml
+    - name: prod scales to 8 replicas
+      grep: { path: platform/vllm/overlays/prod/*.yaml, pattern: 'maxReplicaCount:\s*8' }
+    - name: prod sync window
+      grep: { path: gitops/**/*.yaml, pattern: 'syncWindows' }
+    - name: promotion flow documented
+      grep: { path: README.md, pattern: '(?i)^#+\s*promotion' }
+    - name: every overlay builds
+      run: for e in dev staging prod; do kubectl kustomize platform/vllm/overlays/$e > /dev/null || exit 1; done
+      needs: [kubectl]
+
+"05":
+  title: "Write Rego policies: approved registries + PDBs"
+  checks:
+    - name: registry allow-list includes nvcr.io
+      grep: { path: policy/kubernetes/**/*, pattern: 'nvcr\.io' }
+    - name: PDB rule
+      grep: { path: policy/kubernetes/*.rego, pattern: 'PodDisruptionBudget' }
+    - name: at least 4 new Rego tests (18+ total)
+      grep: { path: policy/kubernetes/*_test.rego, pattern: '^test_\w+ if', min: 18 }
+    - *conftest_verify
+    - name: every platform component still passes the policies
+      run: >-
+        for d in platform/*/; do [ -f "$d/kustomization.yaml" ] || continue;
+        kubectl kustomize "$d" | docker run --rm -i -v "$PWD:/p" -w /p openpolicyagent/conftest:latest test --policy policy/kubernetes --all-namespaces - || exit 1; done
+      needs: [docker, kubectl]
+
+"06":
+  title: A TTFT SLO with burn-rate alerts and promtool tests
+  checks:
+    - name: TTFT rules file
+      file: sre/slo/rules/ttft-slo.rules.yaml
+    - name: SLI built on vLLM TTFT histogram
+      grep: { path: sre/slo/rules/ttft-slo.rules.yaml, pattern: 'time_to_first_token_seconds_bucket' }
+    - name: fast and slow burn alerts
+      grep: { path: sre/slo/rules/ttft-slo.rules.yaml, pattern: '(?i)alert:\s*\S*(ttft|firsttoken)\S*', min: 2 }
+    - name: promtool test file
+      file: sre/slo/tests/ttft-slo.test.yaml
+    - name: tests include a must-not-fire case
+      grep: { path: sre/slo/tests/ttft-slo.test.yaml, pattern: 'exp_alerts:\s*\[\]' }
+    - name: generated PrometheusRule committed
+      file: platform/slo/ttft-slo.yaml
+    - name: runbook written
+      file: docs/runbooks/*[Tt][Tt][Ff][Tt]*.md
+    - *promtool
+    - *slo_drift
+
+"07":
+  title: "Game day: break vLLM under load, write the postmortem"
+  checks:
+    - name: postmortem file
+      file: docs/postmortems/*.md
+    - name: uses the template's action-items table
+      grep: { path: docs/postmortems/*.md, pattern: '(?i)^##\s*action items' }
+    - name: action items cover prevent / detect / mitigate
+      grep: { path: docs/postmortems/*.md, pattern: '(?i)\b(prevent|detect|mitigate)\b', min: 3 }
+    - name: timeline recorded
+      grep: { path: docs/postmortems/*.md, pattern: '(?i)^##\s*timeline' }
+
+"08":
+  title: Enforce signed images at admission (Kyverno verifyImages)
+  checks:
+    - name: Argo CD app for Kyverno
+      file: gitops/apps/kyverno.yaml
+    - name: verifyImages policy
+      grep: { path: platform/**/*.yaml, pattern: 'verifyImages' }
+    - name: keyless attestor bound to GitHub Actions OIDC
+      grep: { path: platform/**/*.yaml, pattern: 'token\.actions\.githubusercontent\.com' }
+    - name: SBOM attestation required
+      grep: { path: platform/**/*.yaml, pattern: '(?i)cyclonedx' }
+    - name: Kyverno CLI test fixture
+      file: "**/kyverno-test.yaml"
+    - name: kyverno test runs in CI
+      grep: { path: .github/workflows/*.yaml, pattern: 'kyverno\s+test' }
+
+"09":
+  title: Drive image CVEs to zero (distroless / chainguard)
+  checks:
+    - name: runtime stage uses a minimal base
+      grep: { path: services/inference-gateway/Dockerfile, pattern: '(?im)^FROM\s+(gcr\.io/distroless|cgr\.dev/chainguard)' }
+    - name: CI gate fails on fixable HIGH and CRITICAL
+      grep: { path: .github/workflows/inference-gateway.yaml, pattern: '(?m)^(?=.*HIGH,CRITICAL)(?=.*--exit-code 1).*$' }
+    - name: image builds
+      run: docker build -q -t inference-gateway:exercise services/inference-gateway
+      needs: [docker]
+    - name: unit tests still pass
+      run: cd services/inference-gateway && python3 -m pytest -q -p no:cacheprovider
+      needs: [python3]
+
+"10":
+  title: "Grow the fabric: third spine + border leaf, no renumbering"
+  checks:
+    - name: spine3 in the fabric
+      grep: { path: network/fabric/fabric.yaml, pattern: 'name:\s*spine3' }
+    - name: border leaf role
+      grep: { path: network/fabric/fabric.yaml, pattern: 'role:\s*border' }
+    - name: test proving a new spine does not renumber links
+      grep: { path: network/tests/*.py, pattern: 'def test_\w*(spine\w*renumber|renumber\w*spine)\w*' }
+    - name: border route policy in templates
+      grep: { path: network/templates/*.j2, pattern: '(?i)prefix-list|route-filter' }
+    - name: golden config for the border leaf
+      file: network/tests/golden/*border*.cfg
+    - *netgen
+
+"11":
+  title: EVPN-VXLAN overlay templates
+  checks:
+    - name: tenants in the fabric model
+      grep: { path: network/fabric/fabric.yaml, pattern: '^tenants:' }
+    - name: VNI handling in the model
+      grep: { path: network/netgen/model.py, pattern: '(?i)\bvni\b', min: 3 }
+    - name: EOS VXLAN interface
+      grep: { path: network/templates/eos_*.j2, pattern: 'interface Vxlan1' }
+    - name: anycast gateway
+      grep: { path: network/templates/eos_*.j2, pattern: 'ip address virtual' }
+    - name: Junos EVPN
+      grep: { path: network/templates/junos_*.j2, pattern: 'protocols evpn' }
+    - name: at least 6 EVPN/VNI/VXLAN tests
+      grep: { path: network/tests/*.py, pattern: '(?i)def test_\w*(vni|evpn|vxlan|tenant)\w*', min: 6 }
+    - *netgen
+
+"12":
+  title: "Share GPUs: MIG and time-slicing with the GPU Operator"
+  checks:
+    - name: GPU Operator Argo CD app
+      grep: { path: gitops/**/*.yaml, pattern: 'gpu-operator' }
+    - name: time-slicing config
+      grep: { path: platform/**/*.yaml, pattern: '(?i)time-?slicing|timeSlicing' }
+    - name: MIG policy rule
+      grep: { path: policy/kubernetes/*.rego, pattern: 'nvidia\.com/mig' }
+    - name: MIG policy tested
+      grep: { path: policy/kubernetes/*_test.rego, pattern: '(?i)^test_\w*mig\w* if' }
+    - *conftest_verify
+
+"13":
+  title: Troubleshooting drills
+  checks:
+    - name: your written answers (study/notes/13-troubleshooting.md)
+      file: study/notes/13-troubleshooting.md
+    - name: all seven drills answered (### A ... ### G)
+      grep: { path: study/notes/13-troubleshooting.md, pattern: '^###\s+[A-G]\b', min: 7 }

@@ -20,6 +20,15 @@ serviceMonitor:
     - port: prom-exporter
 
 config:
+  receivers:
+    otlp:
+      protocols:
+        # Chart default is ${env:MY_POD_IP}, which breaks `kubectl port-forward` (it dials localhost
+        # inside the pod). 0.0.0.0 accepts both; found by the e2e test of lab 06.
+        grpc:
+          endpoint: 0.0.0.0:4317
+        http:
+          endpoint: 0.0.0.0:4318
   exporters:
     prometheus:
       endpoint: ${env:MY_POD_IP}:8889

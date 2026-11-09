@@ -14,3 +14,11 @@
 - [ ] CI policy job passes on `platform/`
 
 **Interview angle:** shift-left vs admission-time enforcement; why you run the *same* Rego in CI (Conftest) and in-cluster (Gatekeeper).
+
+## Validate
+
+```bash
+git checkout -b ex/05-<short-name>
+make exercise EX=05          # local: ✅/❌ per acceptance check
+git push -u origin HEAD       # CI: the `exercise` workflow runs the same checks (strict) + every other pipeline
+```

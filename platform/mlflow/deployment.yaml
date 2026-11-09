@@ -28,23 +28,39 @@ spec:
             - --backend-store-uri=sqlite:////mlflow/mlflow.db
             - --artifacts-destination=/mlflow/artifacts
             - --serve-artifacts
+            - --workers=2   # default 4 x ~400 MB each; 2 is plenty for a lab and avoids OOM/CPU spikes
           env:
             # MLflow 3.x rejects unknown Host headers; allow port-forward + in-cluster DNS
             - name: MLFLOW_SERVER_ALLOWED_HOSTS
               value: "localhost*,127.0.0.1*,mlflow*"
+            # MLflow 3.x starts background job consumers by default (one process per job type, each
+            # importing all of mlflow). With a 2Gi limit that OOMKills the pod; found by the e2e test.
+            # Re-enable on a dedicated replica with more memory if you need async jobs (trace rollups etc).
+            - name: MLFLOW_SERVER_ENABLE_JOB_EXECUTION
+              value: "false"
           ports:
             - name: http
               containerPort: 5000
+          # Startup can take a minute (imports + DB migrations); don't let liveness kill it meanwhile.
+          startupProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 5
+            failureThreshold: 36
           readinessProbe:
             httpGet:
               path: /health
               port: http
-            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
           livenessProbe:
             httpGet:
               path: /health
               port: http
-            initialDelaySeconds: 30
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 3
           resources:
             requests:
               cpu: 100m

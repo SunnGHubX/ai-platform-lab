@@ -13,3 +13,11 @@
 - [ ] Policy test for the MIG rule
 
 **Interview angle:** isolation (MIG = hardware, time-slicing = none), noisy neighbours, when each is appropriate for inference vs training.
+
+## Validate
+
+```bash
+git checkout -b ex/12-<short-name>
+make exercise EX=12          # local: ✅/❌ per acceptance check
+git push -u origin HEAD       # CI: the `exercise` workflow runs the same checks (strict) + every other pipeline
+```

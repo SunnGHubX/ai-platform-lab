@@ -16,3 +16,11 @@
 - [ ] `kyverno test` job in CI
 
 **Interview angle:** SLSA levels, keyless signing (Fulcio/Rekor), why signing without verification is useless.
+
+## Validate
+
+```bash
+git checkout -b ex/08-<short-name>
+make exercise EX=08          # local: ✅/❌ per acceptance check
+git push -u origin HEAD       # CI: the `exercise` workflow runs the same checks (strict) + every other pipeline
+```

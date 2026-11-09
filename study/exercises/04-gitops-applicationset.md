@@ -15,3 +15,11 @@
 - [ ] README section "Promotion" with a diagram
 
 **Interview angle:** multi-cluster GitOps, environment promotion, blast-radius control.
+
+## Validate
+
+```bash
+git checkout -b ex/04-<short-name>
+make exercise EX=04          # local: ✅/❌ per acceptance check
+git push -u origin HEAD       # CI: the `exercise` workflow runs the same checks (strict) + every other pipeline
+```

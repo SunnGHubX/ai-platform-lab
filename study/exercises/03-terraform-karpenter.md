@@ -17,3 +17,11 @@
 - [ ] Load test triggers a GPU node launch and scale-down after cooldown (real cluster, optional)
 
 **Interview angle:** GPU cost control, Spot interruption handling, bin-packing vs model-loading time.
+
+## Validate
+
+```bash
+git checkout -b ex/03-<short-name>
+make exercise EX=03          # local: ✅/❌ per acceptance check
+git push -u origin HEAD       # CI: the `exercise` workflow runs the same checks (strict) + every other pipeline
+```

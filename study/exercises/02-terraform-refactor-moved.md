@@ -15,3 +15,11 @@
 - [ ] PR description explains `moved` vs `terraform state mv` vs `import` blocks
 
 **Interview angle:** safe refactoring of shared modules used by many teams; why `moved` blocks beat `state mv` in a GitOps/CI world.
+
+## Validate
+
+```bash
+git checkout -b ex/02-<short-name>
+make exercise EX=02          # local: ✅/❌ per acceptance check
+git push -u origin HEAD       # CI: the `exercise` workflow runs the same checks (strict) + every other pipeline
+```
