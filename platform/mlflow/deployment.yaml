@@ -33,6 +33,11 @@ spec:
             # MLflow 3.x rejects unknown Host headers; allow port-forward + in-cluster DNS
             - name: MLFLOW_SERVER_ALLOWED_HOSTS
               value: "localhost*,127.0.0.1*,mlflow*"
+            # MLflow 3.x starts background job consumers by default (one process per job type, each
+            # importing all of mlflow). With a 2Gi limit that OOMKills the pod; found by the e2e test.
+            # Re-enable on a dedicated replica with more memory if you need async jobs (trace rollups etc).
+            - name: MLFLOW_SERVER_ENABLE_JOB_EXECUTION
+              value: "false"
           ports:
             - name: http
               containerPort: 5000
