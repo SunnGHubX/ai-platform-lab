@@ -13,6 +13,33 @@ mock_provider "aws" {
       account_id = "123456789012"
     }
   }
+
+  # Mocked resources get random strings for computed attributes; anything validated as an ARN
+  # downstream needs a realistic default.
+  mock_resource "aws_iam_role" {
+    defaults = {
+      arn = "arn:aws:iam::123456789012:role/mock"
+    }
+  }
+
+  mock_resource "aws_sqs_queue" {
+    defaults = {
+      arn = "arn:aws:sqs:us-west-2:123456789012:mock"
+      url = "https://sqs.us-west-2.amazonaws.com/123456789012/mock"
+    }
+  }
+
+  mock_resource "aws_s3_bucket" {
+    defaults = {
+      arn = "arn:aws:s3:::mock-bucket"
+    }
+  }
+
+  mock_resource "aws_secretsmanager_secret" {
+    defaults = {
+      arn = "arn:aws:secretsmanager:us-west-2:123456789012:secret:mock"
+    }
+  }
 }
 
 variables {
