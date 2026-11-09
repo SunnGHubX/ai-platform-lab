@@ -137,7 +137,8 @@ def test_configure_env_text_only_touches_its_own_env_placeholder():
 def test_backend_config_uses_lockfile_on_real_aws_and_endpoints_on_moto():
     real = ab.backend_config("dev", "123456789012", "us-west-2", None)
     assert "-backend-config=use_lockfile=true" in real and not any("endpoints" in c for c in real)
-    fake = ab.backend_config("dev", "123456789012", "us-west-2", "http://127.0.0.1:5000")
+    fake = ab.backend_config("dev", "123456789012", "us-west-2", "https://localhost:5000")
+    assert "-backend-config=insecure=true" in fake
     assert any("endpoints" in c for c in fake) and "-backend-config=use_lockfile=true" not in fake
     assert "-backend-config=key=_global/bootstrap/dev/terraform.tfstate" in real
 

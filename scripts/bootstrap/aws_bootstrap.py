@@ -15,7 +15,8 @@ Steps (each safe to re-run):
   6. apply       - optional: make -C terraform apply-all ENV=<env> (prod requires --i-mean-prod)
 
 No credentials are written anywhere: the AWS CLI / Terraform use your existing profile or SSO session.
-`--endpoint` points everything at a fake AWS (moto) for CI tests of this script.
+`--endpoint` points everything at a fake AWS (moto, over HTTPS) for CI tests of this script. It must be
+HTTPS: the state bucket's policy denies non-TLS requests, and moto enforces it (as it should).
 """
 from __future__ import annotations
 
@@ -84,6 +85,7 @@ def provider_override(endpoint: str) -> str:
     eps = "\n".join(f'      {s} = "{endpoint}"' for s in services)
     return (
         'provider "aws" {\n'
+        "  insecure                    = true\n"  # moto's self-signed TLS cert (TLS is required: bucket policy denies plain HTTP)
         "  s3_use_path_style           = true\n"
         "  skip_credentials_validation = true\n"
         "  skip_requesting_account_id  = false\n"
@@ -96,7 +98,7 @@ def backend_config(env: str, account_id: str, region: str, endpoint: str | None)
     cfg = [f"bucket={bucket_name(account_id, region)}", f"key={STATE_KEY.format(env=env)}", f"region={region}",
            "encrypt=true"]
     if endpoint:
-        cfg += [f'endpoints={{s3="{endpoint}"}}', "use_path_style=true", "skip_credentials_validation=true",
+        cfg += [f'endpoints={{s3="{endpoint}"}}', "use_path_style=true", "insecure=true", "skip_credentials_validation=true",
                 "skip_requesting_account_id=true", "skip_metadata_api_check=true", "skip_region_validation=true"]
     else:
         cfg.append("use_lockfile=true")
@@ -122,7 +124,7 @@ class Runner:
         return proc.stdout if capture else ""
 
     def aws(self, *args: str) -> str:
-        ep = ["--endpoint-url", self.endpoint] if self.endpoint else []
+        ep = ["--endpoint-url", self.endpoint, "--no-verify-ssl"] if self.endpoint else []
         return self.run(["aws", *ep, *args, "--output", "json"], capture=True, mutating=False)
 
     def write(self, path: Path, content: str) -> None:

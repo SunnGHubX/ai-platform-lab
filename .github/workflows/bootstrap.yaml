@@ -94,7 +94,7 @@ jobs:
       AWS_ACCESS_KEY_ID: testing
       AWS_SECRET_ACCESS_KEY: testing
       AWS_DEFAULT_REGION: us-east-1
-      ENDPOINT: http://localhost:5000
+      ENDPOINT: https://localhost:5000   # TLS required: the state bucket policy denies plain HTTP
       MOTO_IAM_LOAD_MANAGED_POLICIES: "true"   # ReadOnlyAccess / AdministratorAccess must exist to attach
     steps:
       - uses: actions/checkout@v4
@@ -104,16 +104,16 @@ jobs:
       - name: tools + fake AWS
         run: |
           ./.github/scripts/install-terraform.sh
-          pip install -q "moto[server]"
+          pip install -q "moto[server]" pyopenssl
           # S3 Control calls go to <account>.localhost; make that resolve regardless of the runner's resolver
           echo "127.0.0.1 123456789012.localhost" | sudo tee -a /etc/hosts
-          nohup moto_server -H 127.0.0.1 -p 5000 > "$RUNNER_TEMP/moto.log" 2>&1 &
-          for _ in $(seq 1 30); do curl -sf "$ENDPOINT/moto-api/" >/dev/null && break; sleep 1; done
+          nohup moto_server -H 127.0.0.1 -p 5000 --ssl > "$RUNNER_TEMP/moto.log" 2>&1 &
+          for _ in $(seq 1 30); do curl -skf "$ENDPOINT/moto-api/" >/dev/null && break; sleep 1; done
       - name: first run (local state -> apply -> migrate into S3 -> configure env files)
         run: python3 scripts/bootstrap/aws_bootstrap.py --env dev --account-id 123456789012 --region us-east-1 --endpoint "$ENDPOINT" --skip-github
       - name: assertions
         run: |
-          aws --endpoint-url "$ENDPOINT" s3api head-object --bucket ai-platform-tfstate-123456789012-us-east-1 \
+          aws --endpoint-url "$ENDPOINT" --no-verify-ssl s3api head-object --bucket ai-platform-tfstate-123456789012-us-east-1 \
             --key _global/bootstrap/dev/terraform.tfstate > /dev/null && echo "✅ state is in the bucket"
           test ! -e terraform/envs/_global/bootstrap/state/dev.tfstate && echo "✅ no local tfstate left behind"
           grep -q 'bucket       = "ai-platform-tfstate-123456789012-us-east-1"' terraform/envs/dev/backend.hcl && echo "✅ backend.hcl configured"
