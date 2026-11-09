@@ -67,7 +67,7 @@ More detail in [docs/architecture.md](docs/architecture.md).
 
 Run every suite: `make test` · end-to-end on kind: `make e2e` · exercise status: `make exercises`.
 
-**CI/CD** ([docs/ci-cd.md](docs/ci-cd.md)): every PR runs static validation, unit tests, policy and security scans; a **nightly e2e** stands the platform up on kind and runs 13 smoke tests; exercise branches (`ex/NN-*`) are graded automatically.
+**CI/CD** ([docs/ci-cd.md](docs/ci-cd.md)): every PR runs static validation, unit tests, policy and security scans; a **nightly e2e** stands the platform up on kind and runs 12 smoke tests; exercise branches (`ex/NN-*`) are graded automatically.
 
 ## Repo layout
 

@@ -41,6 +41,17 @@ diagnostics() {
       echo "--- $ns/$p"; kubectl -n "$ns" logs "$p" --all-containers --tail=40 2>/dev/null || true
     done
   done
+  # Anything that restarted: why it died (OOMKilled? probe?) and what it said before dying
+  kubectl get pods -A -o json | python3 -c '
+import json,sys
+for p in json.load(sys.stdin)["items"]:
+    for c in p["status"].get("containerStatuses", []):
+        if c.get("restartCount", 0):
+            print(p["metadata"]["namespace"], p["metadata"]["name"], c["name"], c["restartCount"], json.dumps(c.get("lastState", {})))
+' | while read -r ns pod ctr n last; do
+    echo "--- RESTARTED $ns/$pod/$ctr x$n lastState=$last"
+    kubectl -n "$ns" logs "$pod" -c "$ctr" --previous --tail=30 2>/dev/null || true
+  done
   kubectl -n inference describe scaledobject vllm || true
   kubectl -n inference get hpa -o wide || true
   endgroup
@@ -48,7 +59,7 @@ diagnostics() {
 
 cleanup() {
   rc=$?
-  for pid in "${PF_PIDS[@]:-}"; do [ -n "$pid" ] && kill "$pid" 2>/dev/null || true; done
+  for pid in "${PF_PIDS[@]:-}"; do [ -n "$pid" ] && { pkill -P "$pid" 2>/dev/null; kill "$pid" 2>/dev/null; } || true; done
   [ $rc -ne 0 ] && diagnostics
   if [ "$KEEP_CLUSTER" != "true" ]; then kind delete cluster --name "$CLUSTER" >/dev/null 2>&1 || true; fi
   rm -rf "$WORK"
@@ -56,8 +67,8 @@ cleanup() {
 }
 trap cleanup EXIT
 
-port_forward() { # port_forward <ns> <svc> <local:remote>
-  kubectl -n "$1" port-forward "svc/$2" "$3" >/dev/null 2>&1 &
+port_forward() { # port_forward <ns> <svc> <local:remote>  - reconnects if the backing pod restarts
+  ( while true; do kubectl -n "$1" port-forward "svc/$2" "$3" >/dev/null 2>&1; sleep 1; done ) &
   PF_PIDS+=($!)
 }
 

@@ -121,20 +121,6 @@ def test_vllm_dashboard_shipped_to_grafana():
     assert '"grafana_dashboard":"1"' in cm
 
 
-# ---------------------------------------------------------------- autoscaling on queue depth
-def test_keda_scaledobject_is_ready():
-    def ready():
-        conds = json.loads(kubectl("-n", "inference", "get", "scaledobject", "vllm", "-o", "jsonpath={.status.conditions}") or "[]")
-        return any(c["type"] == "Ready" and c["status"] == "True" for c in conds)
-    eventually(ready, what="ScaledObject vllm Ready")
-
-
-def test_keda_scales_vllm_when_queue_backs_up():
-    kubectl("-n", "inference", "set", "env", "deploy/vllm", "MOCK_WAITING=50")
-    eventually(lambda: int(kubectl("-n", "inference", "get", "deploy", "vllm", "-o", "jsonpath={.spec.replicas}")) >= 2,
-               timeout=300, every=10, what="KEDA to scale vllm above 1 replica on vllm:num_requests_waiting")
-
-
 # ---------------------------------------------------------------- labs actually work
 def test_lab04_mlflow_train_and_register():
     subprocess.run([sys.executable, str(ROOT / "labs/04-mlflow/train.py"), "--tracking-uri", MLFLOW, "--runs", "2"],
@@ -151,3 +137,17 @@ def test_lab06_otel_metrics_flow_to_prometheus():
     subprocess.run([sys.executable, "-c", script], check=True, timeout=120, env=env)
     eventually(lambda: promql('{__name__=~"inference_requests.*"}'), timeout=180,
                what="OTLP metric re-exposed by the collector and scraped by Prometheus")
+
+
+# ---------------------------------------------------------------- autoscaling on queue depth (last: it adds pods)
+def test_keda_scaledobject_is_ready():
+    def ready():
+        conds = json.loads(kubectl("-n", "inference", "get", "scaledobject", "vllm", "-o", "jsonpath={.status.conditions}") or "[]")
+        return any(c["type"] == "Ready" and c["status"] == "True" for c in conds)
+    eventually(ready, what="ScaledObject vllm Ready")
+
+
+def test_keda_scales_vllm_when_queue_backs_up():
+    kubectl("-n", "inference", "set", "env", "deploy/vllm", "MOCK_WAITING=50")
+    eventually(lambda: int(kubectl("-n", "inference", "get", "deploy", "vllm", "-o", "jsonpath={.spec.replicas}")) >= 2,
+               timeout=300, every=10, what="KEDA to scale vllm above 1 replica on vllm:num_requests_waiting")

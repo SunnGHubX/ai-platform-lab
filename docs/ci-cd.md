@@ -23,7 +23,7 @@ flowchart LR
     sbom -->|main| push2[push GHCR] --> sign[cosign sign + attest]
   end
   subgraph e2e[e2e.yaml]
-    kind[kind cluster] --> charts[kps · KEDA · OTel from gitops versions] --> apps[slo · mlflow · vllm→mock · gateway] --> smoke[13 smoke tests]
+    kind[kind cluster] --> charts[kps · KEDA · OTel from gitops versions] --> apps[slo · mlflow · vllm→mock · gateway] --> smoke[12 smoke tests]
   end
 ```
 
