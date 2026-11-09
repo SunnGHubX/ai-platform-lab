@@ -4,6 +4,7 @@ on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -38,3 +39,31 @@ jobs:
             -schema-location default \
             -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' \
             gitops/
+
+  terraform:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: terraform
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+
+      - name: terraform fmt
+        run: terraform fmt -check -recursive -diff
+
+      - name: terraform validate (every module + stack, no backend)
+        run: make validate
+
+      - uses: terraform-linters/setup-tflint@v4
+
+      - name: tflint
+        run: make lint
+        env:
+          GITHUB_TOKEN: ${{ github.token }} # tflint --init downloads the AWS ruleset
+
+      - name: checkov (security scan, report-only)
+        run: |
+          pip install --quiet checkov
+          checkov -d . --framework terraform --compact --quiet --soft-fail

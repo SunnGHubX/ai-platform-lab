@@ -5,3 +5,10 @@ mlruns/
 *.pyc
 .env
 kubeconfig*
+# Terraform
+.terraform/
+*.tfplan
+*.tfstate
+*.tfstate.*
+crash.log
+.terraform.tfstate.lock.info
