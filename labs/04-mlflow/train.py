@@ -25,7 +25,10 @@ for i in range(a.runs):
         acc = model.score(X_test, y_test)
         mlflow.log_params({"n_estimators": n, "max_depth": depth})
         mlflow.log_metric("accuracy", acc)
-        mlflow.sklearn.log_model(model, name="model", input_example=X_test[:2])
+        # MLflow 3.x saves sklearn models with skops (safe, no arbitrary pickle code) and refuses types it
+        # can't verify. We built this RandomForest ourselves, so trust exactly its tree type and nothing else.
+        mlflow.sklearn.log_model(model, name="model", input_example=X_test[:2],
+                                 skops_trusted_types=["sklearn.tree._tree.Tree"])
         print(f"{run.info.run_id}  n={n} depth={depth} acc={acc:.3f}")
         if acc > best[1]:
             best = (run.info.run_id, acc)

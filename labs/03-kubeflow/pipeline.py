@@ -4,7 +4,7 @@ from kfp import compiler, dsl
 MLFLOW_URI = "http://mlflow.mlops.svc:5000"
 
 
-@dsl.component(base_image="python:3.12-slim", packages_to_install=["mlflow", "scikit-learn"])
+@dsl.component(base_image="python:3.12-slim", packages_to_install=["mlflow==3.18.0", "scikit-learn"])
 def train(n_estimators: int, mlflow_uri: str) -> float:
     import mlflow
     from sklearn.datasets import load_iris
@@ -19,7 +19,7 @@ def train(n_estimators: int, mlflow_uri: str) -> float:
         acc = float(model.score(X_test, y_test))
         mlflow.log_param("n_estimators", n_estimators)
         mlflow.log_metric("accuracy", acc)
-        mlflow.sklearn.log_model(model, name="model")
+        mlflow.sklearn.log_model(model, name="model", skops_trusted_types=["sklearn.tree._tree.Tree"])
     return acc
 
 

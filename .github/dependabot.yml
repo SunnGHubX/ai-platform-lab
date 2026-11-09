@@ -13,6 +13,13 @@ updates:
     schedule:
       interval: weekly
 
+  - package-ecosystem: pip
+    directories:
+      - /labs/04-mlflow
+      - /labs/06-opentelemetry
+    schedule:
+      interval: weekly
+
   - package-ecosystem: docker
     directory: /services/inference-gateway
     schedule:

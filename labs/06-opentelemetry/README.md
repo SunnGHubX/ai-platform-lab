@@ -2,13 +2,13 @@
 
 **Goal:** ship app telemetry over OTLP through one vendor-neutral pipeline.
 
-The collector (`gitops/apps/otel-collector.yaml`, values in `platform/otel/values.yaml`) receives OTLP on `:4317` (gRPC) / `:4318` (HTTP), re-exposes metrics on `:8889` for Prometheus, and prints traces/logs via the `debug` exporter.
+The collector (`gitops/apps/otel-collector.yaml`, values in `platform/otel/values.yaml`) receives OTLP on `:4317` (gRPC) / `:4318` (HTTP), bound to `0.0.0.0` so `kubectl port-forward` works (the chart default binds to the pod IP only), re-exposes metrics on `:8889` for Prometheus, and prints traces/logs via the `debug` exporter.
 
 ## Send telemetry
 
 ```bash
 kubectl -n observability port-forward svc/otel-collector-opentelemetry-collector 4318:4318
-pip install opentelemetry-sdk opentelemetry-exporter-otlp-proto-http
+pip install -r labs/06-opentelemetry/requirements.txt
 python3 labs/06-opentelemetry/emit.py
 ```
 

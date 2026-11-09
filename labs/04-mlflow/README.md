@@ -7,7 +7,7 @@ MLflow is deployed by `gitops/apps/mlflow.yaml` (SQLite + PVC — fine for a lab
 ```bash
 make mlflow-ui                         # http://localhost:5000
 python3 -m venv .venv && . .venv/bin/activate
-pip install mlflow scikit-learn
+pip install -r labs/04-mlflow/requirements.txt   # client version = server version
 python3 labs/04-mlflow/train.py --runs 5
 ```
 

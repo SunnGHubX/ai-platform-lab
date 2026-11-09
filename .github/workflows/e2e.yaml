@@ -10,8 +10,7 @@ on:
       - "gitops/**"
       - "services/**"
       - "sre/**"
-      - "labs/04-mlflow/**"
-      - "labs/06-opentelemetry/**"
+      - "labs/**"
       - "tests/e2e/**"
       - ".github/workflows/e2e.yaml"
   push:
@@ -46,7 +45,7 @@ jobs:
           python-version: "3.12"
 
       - name: test dependencies (lab scripts run for real)
-        run: pip install pyyaml pytest mlflow scikit-learn opentelemetry-sdk opentelemetry-exporter-otlp-proto-http
+        run: pip install pyyaml pytest -r labs/04-mlflow/requirements.txt -r labs/06-opentelemetry/requirements.txt
 
       - name: ensure kind is installed (verified release binary)
         env:
