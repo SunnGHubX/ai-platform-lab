@@ -16,7 +16,7 @@ spec:
       helm:
         valueFiles:
           - $values/platform/otel/values.yaml
-    - repoURL: https://github.com/REPLACE_ME/ai-platform-lab.git
+    - repoURL: https://github.com/SunnGHubX/ai-platform-lab.git
       targetRevision: main
       ref: values
   destination:
