@@ -159,4 +159,4 @@ jobs:
       - name: repo health (incl. no broken doc links)
         run: cd scripts/health && pytest -q -p no:cacheprovider
       - name: shellcheck ops scripts
-        run: shellcheck tests/e2e/run.sh tests/drills/run_drill.sh .github/scripts/*.sh
+        run: shellcheck tests/e2e/run.sh tests/drills/run_drill.sh .github/scripts/*.sh scripts/bootstrap/*.sh .devcontainer/*.sh bootstrap/*.sh

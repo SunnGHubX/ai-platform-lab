@@ -1,0 +1,10 @@
+# Single source of truth for tool versions: laptops (`mise install` or `make prereqs`),
+# CI (.github/scripts/install-terraform.sh, scripts/bootstrap/prereqs.py) and the devcontainer all read this.
+# Versions below are the ones CI currently runs green with. Bump here, nowhere else.
+[tools]
+python = "3.12"
+terraform = "1.17.1"
+tflint = "latest"
+kubectl = "1.37.2"
+helm = "3.22.1"
+kind = "0.33.0"
