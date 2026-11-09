@@ -63,7 +63,9 @@ for p in json.load(sys.stdin)["items"]:
 
 cleanup() {
   rc=$?
-  for pid in "${PF_PIDS[@]:-}"; do [ -n "$pid" ] && { pkill -P "$pid" 2>/dev/null; kill "$pid" 2>/dev/null; } || true; done
+  for pid in "${PF_PIDS[@]:-}"; do
+    if [ -n "$pid" ]; then pkill -P "$pid" 2>/dev/null || true; kill "$pid" 2>/dev/null || true; fi
+  done
   if [ $rc -ne 0 ]; then
     diagnostics
     if [ -n "$BUNDLE_DIR" ]; then

@@ -89,3 +89,10 @@ def test_tail_is_context_before_first_error():
     lines = [f"line {i}" for i in range(50)] + ["##[error]Process completed with exit code 1."] + ["cleanup"] * 30
     d = classify("x", "\n".join(lines))
     assert d.tail[-1].startswith("##[error]") and "cleanup" not in d.tail
+
+
+def test_shellcheck_findings_from_real_run():
+    log = ("In tests/e2e/run.sh line 66:\n  for pid in x; do [ -n \"$pid\" ] && { kill; } || true; done\n"
+           "                                                 ^-- SC2015 (info): Note that A && B || C is not if-then-else.\n")
+    d = classify("tooling", log)
+    assert rule_ids(d) == ["shellcheck"] and d.matches[0][1][0].startswith("SC2015 (info)")

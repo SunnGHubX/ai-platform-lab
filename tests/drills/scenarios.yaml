@@ -30,8 +30,17 @@ gpu-pending:
       kubectl -n inference patch deploy vllm --type json
       -p '[{"op":"add","path":"/spec/template/spec/containers/0/resources/limits/nvidia.com~1gpu","value":"1"}]'
   expect: [UNSCHEDULABLE_GPU]
+  # Re-applying manifests does NOT fix this one: `kubectl apply` only removes fields it applied before,
+  # and the GPU limit came from an imperative patch. Roll back the Deployment instead.
+  fix:
+    - kubectl -n inference rollout undo deploy/vllm
+    - kubectl -n inference rollout status deploy/vllm --timeout=180s
   root_cause: The pod requests nvidia.com/gpu and no node advertises free GPUs (pool at max, scale-from-zero tags missing, or no device plugin).
-  lesson: "Read the PodScheduled condition message: it tells you exactly which resource or taint blocked scheduling."
+  lesson: >-
+    Read the PodScheduled condition message: it tells you exactly which resource or taint blocked scheduling.
+    Bonus gotcha: `kubectl apply` can't remove a field added by `kubectl patch`/`set` (three-way merge only
+    prunes fields it applied itself); use `rollout undo`, server-side apply with --force-conflicts, or let Argo CD
+    self-heal, which is why imperative hotfixes in a GitOps cluster are a trap.
 
 selector-mismatch:
   title: Gateway returns 502 after a label refactor

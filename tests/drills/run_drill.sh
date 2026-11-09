@@ -13,7 +13,9 @@ PIDS=()
 
 cleanup() {
   rc=$?
-  for pid in "${PIDS[@]:-}"; do [ -n "$pid" ] && { pkill -P "$pid" 2>/dev/null; kill "$pid" 2>/dev/null; } || true; done
+  for pid in "${PIDS[@]:-}"; do
+    if [ -n "$pid" ]; then pkill -P "$pid" 2>/dev/null || true; kill "$pid" 2>/dev/null || true; fi
+  done
   [ "${KEEP_CLUSTER:-false}" = "true" ] || kind delete cluster --name "$CLUSTER" >/dev/null 2>&1 || true
   exit $rc
 }

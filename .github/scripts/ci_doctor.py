@@ -73,6 +73,8 @@ RULES: list[Rule] = [
     Rule("docker-build", "Docker build failed", r"ERROR: failed to solve", "Reproduce with `docker build` locally."),
     Rule("exercise", "Exercise acceptance checks not met", r"^❌ (.+)", "Run `make exercise EX=NN` locally.",
          capture=r"^❌ (.+)"),
+    Rule("shellcheck", "Shell lint (shellcheck)", r"\^-- SC\d{4}", "Run `shellcheck <file>` and follow the wiki link for the code.",
+         capture=r"\^-- (SC\d{4} \(\w+\): .+)"),
     Rule("ansible-lint", "ansible-lint", r"Rule Violation Summary|^\S+\.ya?ml:\d+:\d+: \S+\[",
          "Run `cd ansible && ansible-lint`."),
 ]
