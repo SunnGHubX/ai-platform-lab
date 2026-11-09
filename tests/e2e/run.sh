@@ -53,6 +53,8 @@ for p in json.load(sys.stdin)["items"]:
     kubectl -n "$ns" logs "$pod" -c "$ctr" --previous --tail=30 2>/dev/null || true
   done
   kubectl -n inference describe scaledobject vllm || true
+  kubectl -n observability get svc,endpoints -o wide || true
+  for f in "$WORK"/pf-*.log; do [ -f "$f" ] && { echo "--- $f"; tail -20 "$f"; }; done
   kubectl -n inference get hpa -o wide || true
   endgroup
 }
@@ -68,8 +70,13 @@ cleanup() {
 trap cleanup EXIT
 
 port_forward() { # port_forward <ns> <svc> <local:remote>  - reconnects if the backing pod restarts
-  ( while true; do kubectl -n "$1" port-forward "svc/$2" "$3" >/dev/null 2>&1; sleep 1; done ) &
+  ( while true; do kubectl -n "$1" port-forward --address 127.0.0.1 "svc/$2" "$3" >>"$WORK/pf-$2.log" 2>&1; sleep 1; done ) &
   PF_PIDS+=($!)
+}
+
+wait_port() { # wait_port <port> - fail fast with the port-forward log instead of a vague timeout later
+  for _ in $(seq 1 30); do (echo > "/dev/tcp/127.0.0.1/$1") 2>/dev/null && return 0; sleep 2; done
+  echo "port $1 never came up"; cat "$WORK"/pf-*.log; return 1
 }
 
 group "kind cluster"
@@ -122,11 +129,11 @@ port_forward inference inference-gateway 18080:80
 port_forward monitoring kps-prometheus 19090:9090
 port_forward mlops mlflow 15000:5000
 port_forward observability otel-collector-opentelemetry-collector 14318:4318
-sleep 5
+for p in 18080 19090 15000 14318; do wait_port "$p"; done
 endgroup
 
 group "smoke tests"
 GATEWAY_URL=http://localhost:18080 PROM_URL=http://localhost:19090 \
-MLFLOW_URL=http://localhost:15000 OTLP_URL=http://localhost:14318 API_KEY=e2e-test-key \
-  python3 -m pytest tests/e2e/smoke_test.py -v -p no:cacheprovider --junitxml="${JUNIT_XML:-$WORK/junit.xml}"
+MLFLOW_URL=http://127.0.0.1:15000 OTLP_URL=http://127.0.0.1:14318 API_KEY=e2e-test-key \
+  python3 -m pytest tests/e2e/smoke_test.py -v -p no:cacheprovider -o log_cli=false --junitxml="${JUNIT_XML:-$WORK/junit.xml}"
 endgroup

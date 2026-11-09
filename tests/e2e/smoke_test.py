@@ -132,8 +132,13 @@ def test_lab04_mlflow_train_and_register():
 
 
 def test_lab06_otel_metrics_flow_to_prometheus():
+    import socket
+
+    port = int(urllib.parse.urlparse(OTLP).port)
+    eventually(lambda: socket.create_connection(("127.0.0.1", port), timeout=2).close() or True,
+               timeout=60, what=f"OTLP port-forward on {port}")
     env = {**os.environ}
-    script = (ROOT / "labs/06-opentelemetry/emit.py").read_text().replace('"http://localhost:4318"', f'"{OTLP}"')
+    script = (ROOT / "labs/06-opentelemetry/emit.py").read_text().replace('"http://localhost:4318"', f'"{OTLP.replace("localhost", "127.0.0.1")}"')
     subprocess.run([sys.executable, "-c", script], check=True, timeout=120, env=env)
     eventually(lambda: promql('{__name__=~"inference_requests.*"}'), timeout=180,
                what="OTLP metric re-exposed by the collector and scraped by Prometheus")
