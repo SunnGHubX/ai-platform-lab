@@ -123,7 +123,10 @@ jobs:
         run: |
           python3 scripts/bootstrap/aws_bootstrap.py --env dev --account-id 123456789012 --region us-east-1 --endpoint "$ENDPOINT" --skip-github | tee "$RUNNER_TEMP/run2.log"
           grep -q "already in S3" "$RUNNER_TEMP/run2.log"
-          grep -qE "No changes|0 added, 0 changed, 0 destroyed" "$RUNNER_TEMP/run2.log" && echo "✅ no drift on re-run"
+          # Idempotent = nothing created or destroyed. (moto doesn't persist bucket tags written via S3 Control,
+          # so the provider re-applies tags in place on every run; real AWS converges to "No changes".)
+          grep -qE "No changes|Resources: 0 added, [0-9]+ changed, 0 destroyed" "$RUNNER_TEMP/run2.log" && echo "✅ re-run creates/destroys nothing"
+          git diff --quiet -- terraform/envs/dev || { git diff --stat; echo "(expected: first run already configured envs/dev)"; }
       - name: moto log (on failure)
         if: failure()
         run: tail -100 "$RUNNER_TEMP/moto.log"
