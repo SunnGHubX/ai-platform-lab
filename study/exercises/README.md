@@ -1,6 +1,13 @@
 # Exercises
 
-Graded ★ (an evening) to ★★★★ (a weekend). Each one has acceptance criteria that CI or a test can check, so you know when you're done.
+Graded ★ (an evening) to ★★★★ (a weekend). Each one has acceptance criteria that are **checked automatically**, so you know when you're done:
+
+```bash
+make exercises            # status board: ⬜/✅ for every exercise
+make exercise EX=06       # detailed ✅/❌ per check for one exercise
+```
+
+Work on a branch named `ex/NN-<anything>` and push: the `exercise` workflow runs that exercise's checks in CI (strict mode, so a missing tool is a failure) and writes the ✅/❌ table to the run summary. All other pipelines (unit tests, policies, security, e2e) run too, so solving an exercise can't quietly break the platform. The checks live in [`study/checks/exercises.yaml`](../checks/exercises.yaml).
 
 | # | Exercise | Area | Level |
 |---|---|---|---|

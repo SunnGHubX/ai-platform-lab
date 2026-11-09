@@ -16,3 +16,11 @@
 - [ ] Runbook linked from `runbook_url`
 
 **Interview angle:** choosing SLIs users feel, burn-rate math (why 14.4?), alert fatigue.
+
+## Validate
+
+```bash
+git checkout -b ex/06-<short-name>
+make exercise EX=06          # local: ✅/❌ per acceptance check
+git push -u origin HEAD       # CI: the `exercise` workflow runs the same checks (strict) + every other pipeline
+```

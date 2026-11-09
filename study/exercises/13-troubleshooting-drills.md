@@ -23,3 +23,11 @@ Practise out loud: **hypothesis → command → what you expect → what it mean
 
 ### G. Error budget burning, but every dashboard shows vLLM healthy ★★★
 <details><summary>Answer</summary>The SLI is measured at the gateway. Look at `gateway_requests_total` by `code`: 502s with healthy vLLM point at the path between them: NetworkPolicy, Service selector mismatch after a label change, DNS, or the gateway timeout being lower than long generations (504). Also check whether only one gateway pod is failing (bad node).</details>
+
+## Validate
+
+```bash
+git checkout -b ex/13-<short-name>
+make exercise EX=13          # local: ✅/❌ per acceptance check
+git push -u origin HEAD       # CI: the `exercise` workflow runs the same checks (strict) + every other pipeline
+```

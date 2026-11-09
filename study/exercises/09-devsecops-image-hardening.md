@@ -13,3 +13,11 @@
 - [ ] Image size and CVE count reduced; documented
 
 **Interview angle:** base-image strategy, patch SLAs, the difference between "fixable" and "all" CVEs.
+
+## Validate
+
+```bash
+git checkout -b ex/09-<short-name>
+make exercise EX=09          # local: ✅/❌ per acceptance check
+git push -u origin HEAD       # CI: the `exercise` workflow runs the same checks (strict) + every other pipeline
+```

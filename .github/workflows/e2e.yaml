@@ -1,0 +1,81 @@
+# End-to-end: the real platform on a throwaway kind cluster, per PR (when it matters), nightly, and on demand.
+# Proves: Helm values + chart versions from gitops/ install cleanly, manifests apply, NetworkPolicy allows the
+# right traffic, Prometheus scrapes, SLO rules evaluate, KEDA scales on queue depth, and labs 04/06 work.
+name: e2e
+
+on:
+  pull_request:
+    paths:
+      - "platform/**"
+      - "gitops/**"
+      - "services/**"
+      - "sre/**"
+      - "labs/04-mlflow/**"
+      - "labs/06-opentelemetry/**"
+      - "tests/e2e/**"
+      - ".github/workflows/e2e.yaml"
+  push:
+    branches: [main]
+    paths:
+      - "platform/**"
+      - "gitops/**"
+      - "services/**"
+      - "sre/**"
+      - "tests/e2e/**"
+  schedule:
+    - cron: "23 10 * * *"   # nightly: catch upstream chart/image drift
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  kind:
+    name: platform on kind
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: test dependencies (lab scripts run for real)
+        run: pip install pyyaml pytest mlflow scikit-learn opentelemetry-sdk opentelemetry-exporter-otlp-proto-http
+
+      - name: ensure kind is installed (verified release binary)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if ! command -v kind >/dev/null; then
+            cd "$RUNNER_TEMP"
+            gh release download --repo kubernetes-sigs/kind --pattern 'kind-linux-amd64' --pattern 'kind-linux-amd64.sha256sum'
+            sha256sum --check kind-linux-amd64.sha256sum
+            sudo install -m 0755 kind-linux-amd64 /usr/local/bin/kind
+          fi
+          kind version; kubectl version --client; helm version --short
+
+      - name: run e2e
+        env:
+          JUNIT_XML: ${{ runner.temp }}/e2e-junit.xml
+        run: ./tests/e2e/run.sh
+
+      - name: test report
+        if: always()
+        run: |
+          python3 - <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          import os, xml.etree.ElementTree as ET
+          p = os.path.join(os.environ["RUNNER_TEMP"], "e2e-junit.xml")
+          if not os.path.exists(p):
+              print("### e2e: no test report (setup failed - see logs and the diagnostics group)"); raise SystemExit
+          cases = ET.parse(p).getroot().iter("testcase")
+          print("### e2e smoke tests\n\n| | Test |\n|---|---|")
+          for c in cases:
+              ok = not any(ch.tag in ("failure", "error") for ch in c)
+              print(f"| {'✅' if ok else '❌'} | `{c.get('name')}` |")
+          PY

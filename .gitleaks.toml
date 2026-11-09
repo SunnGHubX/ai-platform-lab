@@ -6,6 +6,7 @@ useDefault = true
 description = "test fixtures and documentation placeholders"
 paths = [
   '''services/inference-gateway/tests/.*''',
+  '''tests/e2e/.*''',
 ]
 regexes = [
   '''hf_xxx''',

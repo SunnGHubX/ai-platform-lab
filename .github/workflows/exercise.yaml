@@ -1,0 +1,66 @@
+# Validates study exercises. Work on a branch named ex/NN-<anything> (e.g. ex/06-ttft-slo):
+# every push runs that exercise's acceptance checks and writes a ✅/❌ table to the run summary.
+# The normal pipelines (validate, security, e2e...) still run on your PR, so nothing else can break silently.
+name: exercise
+
+on:
+  push:
+    branches: ["ex/**"]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      exercise:
+        description: Exercise id (01-13), or "all" for the status board
+        required: true
+        default: all
+
+permissions:
+  contents: read
+
+jobs:
+  checker-selftest:
+    name: exercise checker unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install pytest pyyaml
+      - run: cd study/checks && pytest -q -p no:cacheprovider
+
+  check:
+    name: acceptance checks
+    needs: checker-selftest
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: which exercise?
+        id: ex
+        env:
+          INPUT: ${{ inputs.exercise }}
+          HEAD_REF: ${{ github.head_ref || github.ref_name }}
+        run: |
+          if [ -n "$INPUT" ]; then id="$INPUT"
+          elif [[ "$HEAD_REF" =~ ^ex/([0-9]{2}) ]]; then id="${BASH_REMATCH[1]}"
+          else id="all"; fi
+          echo "id=$id" >> "$GITHUB_OUTPUT"
+          echo "Exercise: $id"
+
+      # Tools the `run` checks need. --strict makes a missing tool a failure, not a skip.
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install pyyaml pytest jinja2
+      - name: install terraform (verified release)
+        run: ./.github/scripts/install-terraform.sh
+
+      - name: run checks (single exercise, strict)
+        if: steps.ex.outputs.id != 'all'
+        run: python3 study/checks/check.py "${{ steps.ex.outputs.id }}" --strict
+
+      - name: status board (all exercises, static checks)
+        if: steps.ex.outputs.id == 'all'
+        run: python3 study/checks/check.py --all --quick

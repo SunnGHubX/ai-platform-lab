@@ -15,3 +15,11 @@
 - [ ] Border leaf config has inbound/outbound route policy
 
 **Interview angle:** Clos design, ECMP, failure domains, why deterministic addressing matters for automation.
+
+## Validate
+
+```bash
+git checkout -b ex/10-<short-name>
+make exercise EX=10          # local: ✅/❌ per acceptance check
+git push -u origin HEAD       # CI: the `exercise` workflow runs the same checks (strict) + every other pipeline
+```

@@ -26,3 +26,11 @@
 </details>
 
 **Interview angle:** "How do you test Terraform?" Answer with mock providers, plan-time assertions, policy validations, and why you don't need real AWS to test module contracts.
+
+## Validate
+
+```bash
+git checkout -b ex/01-<short-name>
+make exercise EX=01          # local: ✅/❌ per acceptance check
+git push -u origin HEAD       # CI: the `exercise` workflow runs the same checks (strict) + every other pipeline
+```

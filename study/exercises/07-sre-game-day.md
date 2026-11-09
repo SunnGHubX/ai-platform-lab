@@ -14,3 +14,11 @@
 - [ ] One action item shipped with a test
 
 **Interview angle:** "Tell me about an incident you handled." This gives you a fresh, detailed, data-backed story.
+
+## Validate
+
+```bash
+git checkout -b ex/07-<short-name>
+make exercise EX=07          # local: ✅/❌ per acceptance check
+git push -u origin HEAD       # CI: the `exercise` workflow runs the same checks (strict) + every other pipeline
+```

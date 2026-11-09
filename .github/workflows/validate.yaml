@@ -94,8 +94,11 @@ jobs:
       - uses: actions/checkout@v4
       - name: promtool check rules
         run: docker run --rm -v "$PWD:/w" -w /w --entrypoint promtool prom/prometheus:latest check rules sre/slo/rules/*.rules.yaml
-      - name: promtool test rules (alert unit tests)
-        run: docker run --rm -v "$PWD:/w" -w /w/sre/slo/tests --entrypoint promtool prom/prometheus:latest test rules inference-slo.test.yaml
+      - name: promtool test rules (alert unit tests, every file)
+        run: |
+          for f in sre/slo/tests/*.test.yaml; do
+            docker run --rm -v "$PWD:/w" -w /w/sre/slo/tests --entrypoint promtool prom/prometheus:latest test rules "$(basename "$f")"
+          done
       - name: generated PrometheusRule is up to date
         run: |
           pip install --quiet pyyaml

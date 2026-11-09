@@ -1,0 +1,57 @@
+# E2E overlay: the REAL platform/vllm and platform/inference-gateway manifests
+# (ScaledObject, ServiceMonitor, NetworkPolicy, PDB, hardened securityContext),
+# with only the GPU-bound vLLM container swapped for the mock and images loaded locally.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: inference
+resources:
+  - ../../../../platform/vllm
+  - ../../../../platform/inference-gateway
+secretGenerator:
+  - name: inference-gateway-api-keys
+    literals:
+      - keys=e2e-test-key
+    options:
+      disableNameSuffixHash: true
+patches:
+  - target:
+      kind: Deployment
+      name: vllm
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0
+        value:
+          name: vllm
+          image: mock-llm:e2e
+          imagePullPolicy: Never
+          ports:
+            - name: http
+              containerPort: 8000
+          env:
+            - name: MOCK_WAITING
+              value: "0"
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 5
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              memory: 64Mi
+      - op: remove
+        path: /spec/template/spec/volumes
+      - op: remove
+        path: /spec/template/spec/tolerations
+  - target:
+      kind: Deployment
+      name: inference-gateway
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/image
+        value: inference-gateway:e2e
+      - op: add
+        path: /spec/template/spec/containers/0/imagePullPolicy
+        value: Never

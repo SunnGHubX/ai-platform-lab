@@ -1,0 +1,11 @@
+# E2E-only overrides layered ON TOP of platform/monitoring/values.yaml (which is what's really under test).
+alertmanager:
+  enabled: false
+prometheus:
+  prometheusSpec:
+    scrapeInterval: 10s
+    evaluationInterval: 10s
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi

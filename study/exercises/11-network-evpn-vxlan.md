@@ -15,3 +15,11 @@
 - [ ] Optional: boot the configs in containerlab (cEOS + vJunos) and show `show bgp evpn summary`
 
 **Interview angle:** why AI back-end networks usually stay **pure L3 + RoCE** (no VXLAN on the GPU rail) while front-end/storage networks use EVPN. Be ready to defend it.
+
+## Validate
+
+```bash
+git checkout -b ex/11-<short-name>
+make exercise EX=11          # local: ✅/❌ per acceptance check
+git push -u origin HEAD       # CI: the `exercise` workflow runs the same checks (strict) + every other pipeline
+```
