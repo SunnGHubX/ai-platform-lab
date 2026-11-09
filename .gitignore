@@ -1,0 +1,7 @@
+*.bak
+.venv/
+__pycache__/
+mlruns/
+*.pyc
+.env
+kubeconfig*

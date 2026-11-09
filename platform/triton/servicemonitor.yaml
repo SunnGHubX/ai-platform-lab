@@ -1,0 +1,14 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: triton
+  labels:
+    app.kubernetes.io/name: triton
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: triton
+  endpoints:
+    - port: metrics
+      path: /metrics
+      interval: 15s

@@ -1,0 +1,17 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: inference
+labels:
+  - pairs:
+      app.kubernetes.io/part-of: ai-platform-lab
+resources:
+  - deployment.yaml
+  - service.yaml
+  - servicemonitor.yaml
+# Demo model repo shipped as a ConfigMap. Real models live in S3/GCS/PVC:
+#   --model-repository=s3://bucket/models
+configMapGenerator:
+  - name: triton-model-add-sub
+    files:
+      - config.pbtxt=model_repository/add_sub/config.pbtxt
+      - model.py=model_repository/add_sub/1/model.py

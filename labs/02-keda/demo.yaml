@@ -1,0 +1,45 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: keda-demo
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx
+  namespace: keda-demo
+spec:
+  replicas: 0
+  selector:
+    matchLabels:
+      app: nginx
+  template:
+    metadata:
+      labels:
+        app: nginx
+    spec:
+      containers:
+        - name: nginx
+          image: nginx:1.27-alpine
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+---
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: nginx-cron
+  namespace: keda-demo
+spec:
+  scaleTargetRef:
+    name: nginx
+  minReplicaCount: 0
+  maxReplicaCount: 3
+  triggers:
+    - type: cron
+      metadata:
+        timezone: America/Los_Angeles
+        start: 0 * * * *
+        end: 10 * * * *
+        desiredReplicas: "3"

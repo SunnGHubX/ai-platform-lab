@@ -1,0 +1,22 @@
+# kube-prometheus-stack values
+fullnameOverride: kps           # -> Prometheus at kps-prometheus.monitoring.svc:9090
+
+prometheus:
+  prometheusSpec:
+    retention: 7d
+    # Pick up ServiceMonitors/PodMonitors/Rules from every namespace, not just this release
+    serviceMonitorSelectorNilUsesHelmValues: false
+    podMonitorSelectorNilUsesHelmValues: false
+    ruleSelectorNilUsesHelmValues: false
+
+grafana:
+  fullnameOverride: grafana      # -> grafana.monitoring.svc
+  adminPassword: prom-operator   # lab only — use an existing secret in real clusters
+  sidecar:
+    dashboards:
+      enabled: true
+      label: grafana_dashboard
+      searchNamespace: ALL       # load dashboards shipped next to each workload
+
+alertmanager:
+  enabled: true

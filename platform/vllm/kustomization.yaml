@@ -1,0 +1,19 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: inference
+labels:
+  - pairs:
+      app.kubernetes.io/part-of: ai-platform-lab
+resources:
+  - deployment.yaml
+  - service.yaml
+  - servicemonitor.yaml
+  - scaledobject.yaml
+configMapGenerator:
+  - name: vllm-grafana-dashboard
+    files:
+      - vllm-dashboard.json
+    options:
+      disableNameSuffixHash: true
+      labels:
+        grafana_dashboard: "1"

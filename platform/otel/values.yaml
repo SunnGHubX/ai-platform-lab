@@ -1,0 +1,35 @@
+# opentelemetry-collector values
+mode: deployment
+
+image:
+  repository: otel/opentelemetry-collector-contrib
+
+ports:
+  metrics:            # collector's own telemetry (:8888)
+    enabled: true
+  prom-exporter:      # app metrics received via OTLP, re-exposed for Prometheus
+    enabled: true
+    containerPort: 8889
+    servicePort: 8889
+    protocol: TCP
+
+serviceMonitor:
+  enabled: true
+  metricsEndpoints:
+    - port: metrics
+    - port: prom-exporter
+
+config:
+  exporters:
+    prometheus:
+      endpoint: ${env:MY_POD_IP}:8889
+      resource_to_telemetry_conversion:
+        enabled: true
+  service:
+    pipelines:
+      metrics:
+        exporters: [prometheus, debug]
+      traces:
+        exporters: [debug]     # swap for Tempo/Jaeger (otlp exporter) when you add one
+      logs:
+        exporters: [debug]     # swap for Loki

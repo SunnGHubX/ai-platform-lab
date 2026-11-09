@@ -1,0 +1,18 @@
+# Scale vLLM on queue depth, not CPU. Requests waiting = users waiting.
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: vllm
+spec:
+  scaleTargetRef:
+    name: vllm
+  minReplicaCount: 1        # set 0 for scale-to-zero (accept cold-start latency)
+  maxReplicaCount: 4        # bounded by GPUs in the node pool
+  pollingInterval: 15
+  cooldownPeriod: 300       # GPU pods are expensive to restart; don't flap
+  triggers:
+    - type: prometheus
+      metadata:
+        serverAddress: http://kps-prometheus.monitoring.svc:9090
+        query: sum(vllm:num_requests_waiting{namespace="inference"})
+        threshold: "5"      # target waiting requests per replica

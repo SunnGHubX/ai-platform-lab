@@ -1,0 +1,15 @@
+name: "add_sub"
+backend: "python"
+max_batch_size: 0
+
+input [
+  { name: "INPUT0", data_type: TYPE_FP32, dims: [ 4 ] },
+  { name: "INPUT1", data_type: TYPE_FP32, dims: [ 4 ] }
+]
+output [
+  { name: "OUTPUT0", data_type: TYPE_FP32, dims: [ 4 ] },
+  { name: "OUTPUT1", data_type: TYPE_FP32, dims: [ 4 ] }
+]
+
+# CPU so the demo runs anywhere. For real models use KIND_GPU and request nvidia.com/gpu.
+instance_group [ { count: 1, kind: KIND_CPU } ]

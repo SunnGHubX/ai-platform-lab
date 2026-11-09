@@ -1,0 +1,22 @@
+# Opt-in app-of-apps for inference workloads (vLLM needs a GPU; Triton demo runs on CPU).
+# Kept separate so the core stack (gitops/apps) stays light enough for a laptop.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: root-inference
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/REPLACE_ME/ai-platform-lab.git
+    targetRevision: main
+    path: gitops/apps-inference
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
