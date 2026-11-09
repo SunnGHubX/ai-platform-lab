@@ -28,8 +28,9 @@ provider "aws" {
 }
 
 module "state_backend" {
-  source  = "../../../modules/state-backend"
-  project = var.project
+  source             = "../../../modules/state-backend"
+  project            = var.project
+  enforce_tls_policy = var.enforce_tls_policy
 }
 
 # ---- GitHub Actions OIDC: no long-lived AWS keys in GitHub ----

@@ -200,3 +200,16 @@ def test_argo_status(apps, minimum, rc):
     proc = subprocess.run([sys.executable, str(Path(argo_status.__file__)), "--min", str(minimum)],
                           input=json.dumps(apps), capture_output=True, text=True)
     assert proc.returncode == rc
+
+
+def test_tls_policy_is_on_by_default_and_only_disabled_for_the_emulator(monkeypatch, capsys):
+    boot_vars = (ROOT / "terraform/envs/_global/bootstrap/variables.tf").read_text()
+    module_vars = (ROOT / "terraform/modules/state-backend/variables.tf").read_text()
+    for text in (boot_vars, module_vars):
+        block = text[text.index('variable "enforce_tls_policy"'):]
+        assert "default     = true" in block.split("}")[0]
+    monkeypatch.setattr(ab.shutil, "which", lambda t: f"/usr/bin/{t}")
+    monkeypatch.setattr(ab.Runner, "aws", lambda self, *a: json.dumps({"Account": "123456789012", "Arn": "x"})
+                        if a[-3:] != () and "sts" in a else (_ for _ in ()).throw(ab.BootstrapError("404")))
+    assert ab.main(["--env", "dev", "--account-id", "123456789012", "--dry-run", "--skip-github"]) == 0
+    assert "enforce_tls_policy=false" not in capsys.readouterr().out

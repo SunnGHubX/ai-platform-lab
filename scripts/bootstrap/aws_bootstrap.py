@@ -179,6 +179,10 @@ def main(argv: list[str] | None = None) -> int:
         r.write(BOOT / "provider_override.tf", provider_override(a.endpoint))
     tf_vars = [f"-var=environment={a.env}", f"-var=account_id={a.account_id}", f"-var=region={a.region}",
                f"-var=github_repository={a.github_repo}"]
+    if a.endpoint:
+        # moto applies Deny statements without evaluating their conditions, so the TLS-only deny would
+        # lock the emulator out of its own bucket. Real AWS always keeps the policy (default true).
+        tf_vars.append("-var=enforce_tls_policy=false")
     bootstrap_dir = ["-chdir=" + str(BOOT)]
 
     # 2 + 3. bootstrap, with state migration on first run

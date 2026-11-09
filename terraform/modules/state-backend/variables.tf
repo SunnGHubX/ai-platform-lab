@@ -8,3 +8,9 @@ variable "noncurrent_version_retention_days" {
   type        = number
   default     = 90
 }
+
+variable "enforce_tls_policy" {
+  description = "Deny non-TLS access to the state bucket. Only disabled for emulator tests (moto ignores policy conditions)."
+  type        = bool
+  default     = true
+}
