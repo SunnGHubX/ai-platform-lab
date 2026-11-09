@@ -78,7 +78,9 @@ def s3_backend_override() -> str:
 
 def provider_override(endpoint: str) -> str:
     """Point the AWS provider at a fake endpoint (moto) - CI only."""
-    services = ["s3", "kms", "iam", "sts"]
+    # s3control: the AWS provider reads bucket tags via S3 Control, which prefixes the host with the
+    # account id (<account>.<endpoint host>) - so the fake endpoint must be a resolvable *name*, e.g. localhost.
+    services = ["s3", "s3control", "kms", "iam", "sts"]
     eps = "\n".join(f'      {s} = "{endpoint}"' for s in services)
     return (
         'provider "aws" {\n'

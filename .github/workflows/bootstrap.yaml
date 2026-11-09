@@ -94,7 +94,8 @@ jobs:
       AWS_ACCESS_KEY_ID: testing
       AWS_SECRET_ACCESS_KEY: testing
       AWS_DEFAULT_REGION: us-east-1
-      ENDPOINT: http://127.0.0.1:5000
+      ENDPOINT: http://localhost:5000
+      MOTO_IAM_LOAD_MANAGED_POLICIES: "true"   # ReadOnlyAccess / AdministratorAccess must exist to attach
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -104,6 +105,8 @@ jobs:
         run: |
           ./.github/scripts/install-terraform.sh
           pip install -q "moto[server]"
+          # S3 Control calls go to <account>.localhost; make that resolve regardless of the runner's resolver
+          echo "127.0.0.1 123456789012.localhost" | sudo tee -a /etc/hosts
           nohup moto_server -H 127.0.0.1 -p 5000 > "$RUNNER_TEMP/moto.log" 2>&1 &
           for _ in $(seq 1 30); do curl -sf "$ENDPOINT/moto-api/" >/dev/null && break; sleep 1; done
       - name: first run (local state -> apply -> migrate into S3 -> configure env files)
