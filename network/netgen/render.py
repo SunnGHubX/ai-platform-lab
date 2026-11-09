@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from jinja2 import Environment, FileSystemLoader, StrictUndefined
+from jinja2 import Environment, FileSystemLoader, StrictUndefined, select_autoescape
 
 from .model import Device, Fabric
 
@@ -17,7 +17,8 @@ def environment() -> Environment:
         trim_blocks=True,
         lstrip_blocks=True,
         keep_trailing_newline=True,
-        autoescape=False,  # noqa: S701 - network configs, not HTML
+        # Escape only HTML/XML templates; our .j2 switch configs must render verbatim.
+        autoescape=select_autoescape(enabled_extensions=("html", "htm", "xml"), default_for_string=True, default=False),
     )
 
 

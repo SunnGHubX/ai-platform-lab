@@ -87,8 +87,17 @@ jobs:
           docker push "$IMAGE:$VERSION"
           echo "DIGEST=$(docker inspect --format='{{index .RepoDigests 0}}' $IMAGE:$VERSION)" >> "$GITHUB_ENV"
 
-      - uses: sigstore/cosign-installer@v3
-        if: github.ref == 'refs/heads/main'
+      # No third-party installer action: download the release binary and verify its checksum.
+      # Runs on PRs too so the install path is tested before main depends on it.
+      - name: install cosign (verified release binary)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/cosign" && cd "$RUNNER_TEMP/cosign"
+          gh release download --repo sigstore/cosign --pattern 'cosign-linux-amd64' --pattern 'cosign_checksums.txt'
+          grep ' cosign-linux-amd64$' cosign_checksums.txt | sha256sum --check --strict
+          sudo install -m 0755 cosign-linux-amd64 /usr/local/bin/cosign
+          cosign version
 
       - name: sign image + attest SBOM (keyless, GitHub OIDC)
         if: github.ref == 'refs/heads/main'

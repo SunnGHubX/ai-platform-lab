@@ -5,7 +5,6 @@ from pathlib import Path
 
 import pytest
 import yaml
-
 from netgen.model import FabricError, build, load
 from netgen.render import render_all, render_device
 
