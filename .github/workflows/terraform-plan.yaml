@@ -1,0 +1,48 @@
+# Plans every (env, stack) on PRs that touch terraform/ using GitHub OIDC -> AWS (no stored keys).
+# Off until you run envs/_global/bootstrap and set repository variables:
+#   TF_PLAN_ENABLED=true, AWS_PLAN_ROLE_ARN_DEV / _STAGING / _PROD
+name: terraform-plan
+
+on:
+  pull_request:
+    paths: ["terraform/**"]
+
+permissions:
+  contents: read
+  id-token: write       # OIDC token for AWS
+  pull-requests: write  # post plan summaries
+
+jobs:
+  plan:
+    if: vars.TF_PLAN_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      max-parallel: 1   # stacks read each other's SSM outputs; keep it simple and ordered
+      matrix:
+        env: [dev, staging, prod]
+        stack: [network, eks, services]
+    defaults:
+      run:
+        working-directory: terraform
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars[format('AWS_PLAN_ROLE_ARN_{0}', matrix.env)] }}
+          aws-region: us-west-2
+
+      - name: plan ${{ matrix.env }}/${{ matrix.stack }}
+        run: make plan ENV=${{ matrix.env }} STACK=${{ matrix.stack }} 2>&1 | tee plan.txt
+
+      - name: summary
+        if: always()
+        run: |
+          {
+            echo "### ${{ matrix.env }} / ${{ matrix.stack }}"
+            echo '```'
+            grep -E '^(Plan:|No changes|Error)' plan.txt || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -55,6 +55,7 @@ More detail in [docs/architecture.md](docs/architecture.md).
 ## Repo layout
 
 ```
+terraform/          AWS foundation: VPC, EKS + GPU pool, per-service IAM/SQS/S3/RDS (dev/staging/prod)
 bootstrap/          kind cluster config + one-shot Argo CD install
 gitops/root-app.yaml        core app-of-apps (monitoring, KEDA, OTel, MLflow)
 gitops/root-inference.yaml  opt-in app-of-apps (vLLM, Triton)
@@ -64,7 +65,11 @@ labs/NN-<tool>/     standalone, step-by-step lab per tool
 scripts/            load generator & helpers
 ```
 
-## Quickstart
+## Running on AWS
+
+[`terraform/`](terraform) builds the cloud foundation: account-isolated dev/staging/prod, VPC, EKS with a scale-from-zero GPU node pool, and a service catalog that gives each microservice its own ECR repo, SQS queue, S3 bucket, secrets, Postgres and least-privilege Pod Identity role. See [terraform/README.md](terraform/README.md).
+
+## Quickstart (local kind cluster)
 
 **Prereqs:** `docker`, `kind`, `kubectl`, `helm`. GPU components (vLLM, Triton GPU) need a node with an NVIDIA GPU + the [NVIDIA GPU Operator](https://github.com/NVIDIA/gpu-operator) or device plugin — everything else runs on a laptop.
 
