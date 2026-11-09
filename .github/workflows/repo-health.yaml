@@ -1,0 +1,33 @@
+# Weekly check-up of the repo itself: broken doc links, how far chart/image pins have drifted
+# from upstream, and the exercise status board. Report-only (drift is planning info, not an outage).
+name: repo-health
+
+on:
+  schedule:
+    - cron: "7 14 * * 1"   # Monday morning report
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  health:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -q pyyaml pytest
+      - name: broken relative links in docs
+        run: python3 scripts/health/check_links.py .
+      - name: version drift (charts + images)
+        run: python3 scripts/health/version_drift.py
+      - name: exercise status board
+        run: |
+          {
+            echo "### Exercise status"
+            echo '```'
+            python3 study/checks/check.py --all --quick
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

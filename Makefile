@@ -3,7 +3,7 @@ CLUSTER ?= sunn-platform-lab
 
 
 
-.PHONY: exercise exercises e2e test-exercises test test-terraform test-policy test-slo test-network test-gateway help set-repo cluster bootstrap inference argocd-password argocd-ui grafana-ui mlflow-ui vllm-api lint teardown
+.PHONY: drill triage doctor health exercise exercises e2e test-exercises test test-terraform test-policy test-slo test-network test-gateway help set-repo cluster bootstrap inference argocd-password argocd-ui grafana-ui mlflow-ui vllm-api lint teardown
 
 help: ## Show targets
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "  \033[36m%-16s\033[0m %s\n",$$1,$$2}'
@@ -45,7 +45,7 @@ lint: ## yamllint + kustomize build of every platform dir
 teardown: ## Delete the kind cluster
 	kind delete cluster --name $(CLUSTER)
 
-test: test-terraform test-policy test-slo test-network test-gateway test-exercises ## Run every test suite (needs terraform + docker)
+test: test-terraform test-policy test-slo test-network test-gateway test-exercises test-tooling ## Run every test suite (needs terraform + docker)
 
 test-terraform: ## terraform test with mocked AWS
 	$(MAKE) -C terraform test
@@ -58,6 +58,9 @@ test-slo: ## promtool alert unit tests (every file)
 
 test-network: ## netgen unit + golden tests
 	cd network && pytest -q
+
+test-tooling: ## triage, drills, ci-doctor, health unit tests
+	for d in scripts/triage tests/drills .github/scripts scripts/health; do (cd $$d && pytest -q -p no:cacheprovider) || exit 1; done
 
 test-exercises: ## exercise checker unit tests
 	cd study/checks && pytest -q -p no:cacheprovider
@@ -74,3 +77,16 @@ exercise: ## Check one exercise: make exercise EX=06
 
 e2e: ## Full end-to-end test in a local kind cluster (needs docker, kind, kubectl, helm)
 	./tests/e2e/run.sh
+
+drill: ## Break-fix drill on kind: make drill SCENARIO=oom [PRACTICE=1]
+	@test -n "$(SCENARIO)" || (echo "usage: make drill SCENARIO=<$$(python3 -c 'import yaml;print("|".join(yaml.safe_load(open("tests/drills/scenarios.yaml"))))')>" && exit 1)
+	./tests/drills/run_drill.sh $(SCENARIO) $(if $(PRACTICE),--no-reveal,)
+
+triage: ## Debug bundle + root-cause findings for the CURRENT kube context: make triage [PROM=http://localhost:9090]
+	python3 scripts/triage/triage.py --out triage-bundle-$$(date +%Y%m%d-%H%M%S) $(if $(PROM),--prom-url $(PROM),)
+
+doctor: ## Explain a failed CI run: make doctor RUN=<run id>
+	python3 .github/scripts/ci_doctor.py --repo SunnGHubX/sunn-platform-lab --run-id $(RUN)
+
+health: ## Doc links + version drift report
+	python3 scripts/health/check_links.py . && python3 scripts/health/version_drift.py

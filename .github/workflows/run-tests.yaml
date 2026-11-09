@@ -1,0 +1,82 @@
+# On-demand test runner: pick a suite, optionally filter to one test/module, optionally turn on debug
+# output (pytest -vv/-s/locals, TF_LOG=DEBUG, OPA --explain). Artifacts (JUnit, debug logs, triage
+# bundle) are uploaded every time. Use it to reproduce a failure in CI without pushing commits.
+name: run-tests
+
+on:
+  workflow_dispatch:
+    inputs:
+      suite:
+        description: Suite
+        type: choice
+        default: all-fast
+        options: [all-fast, terraform, policy, slo, gateway, network, triage, drills-static, ci-doctor, exercise-checker, repo-health, ansible, e2e]
+      filter:
+        description: "Filter: pytest -k expr / terraform module path fragment / OPA --run regex / SLO test file"
+        required: false
+        default: ""
+      debug:
+        description: Verbose debug output
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      suites: ${{ steps.pick.outputs.suites }}
+    steps:
+      - id: pick
+        env:
+          SUITE: ${{ inputs.suite }}
+        run: |
+          if [ "$SUITE" = "all-fast" ]; then
+            echo 'suites=["terraform","policy","slo","gateway","network","triage","drills-static","ci-doctor","exercise-checker","repo-health","ansible"]' >> "$GITHUB_OUTPUT"
+          else
+            echo "suites=[\"$SUITE\"]" >> "$GITHUB_OUTPUT"
+          fi
+
+  test:
+    name: ${{ matrix.suite }}
+    needs: plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        suite: ${{ fromJSON(needs.plan.outputs.suites) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: dependencies
+        env:
+          SUITE: ${{ matrix.suite }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          pip install -q pytest pyyaml jinja2
+          case "$SUITE" in
+            terraform) ./.github/scripts/install-terraform.sh ;;
+            gateway)   pip install -q -r services/inference-gateway/requirements-dev.txt ;;
+            ansible)   pip install -q ansible-core ansible-lint ;;
+            e2e)       pip install -q -r labs/04-mlflow/requirements.txt -r labs/06-opentelemetry/requirements.txt
+                       command -v kind >/dev/null || { cd "$RUNNER_TEMP"; gh release download --repo kubernetes-sigs/kind --pattern 'kind-linux-amd64' --pattern 'kind-linux-amd64.sha256sum'; sha256sum --check kind-linux-amd64.sha256sum; sudo install -m 0755 kind-linux-amd64 /usr/local/bin/kind; } ;;
+          esac
+      - name: run ${{ matrix.suite }}
+        env:
+          SUITE: ${{ matrix.suite }}
+          FILTER: ${{ inputs.filter }}
+          DEBUG: ${{ inputs.debug }}
+          ARTIFACTS: ${{ runner.temp }}/artifacts
+        run: ./.github/scripts/run_suite.sh
+      - name: upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: run-tests-${{ matrix.suite }}
+          path: ${{ runner.temp }}/artifacts
+          if-no-files-found: ignore
