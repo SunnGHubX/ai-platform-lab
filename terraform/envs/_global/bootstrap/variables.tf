@@ -28,5 +28,5 @@ variable "region" {
 variable "github_repository" {
   description = "owner/repo allowed to assume the CI roles."
   type        = string
-  default     = "SunnGHubX/ai-platform-lab"
+  default     = "SunnGHubX/sunn-platform-lab"
 }

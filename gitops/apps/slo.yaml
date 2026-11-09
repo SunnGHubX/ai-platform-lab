@@ -10,7 +10,7 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: https://github.com/SunnGHubX/ai-platform-lab.git
+    repoURL: https://github.com/SunnGHubX/sunn-platform-lab.git
     targetRevision: main
     path: platform/slo
   destination:

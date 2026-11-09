@@ -1,5 +1,5 @@
 SHELL := /usr/bin/env bash
-CLUSTER ?= ai-platform-lab
+CLUSTER ?= sunn-platform-lab
 
 
 .PHONY: test test-terraform test-policy test-slo test-network test-gateway help set-repo cluster bootstrap inference argocd-password argocd-ui grafana-ui mlflow-ui vllm-api lint teardown
@@ -7,9 +7,9 @@ CLUSTER ?= ai-platform-lab
 help: ## Show targets
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "  \033[36m%-16s\033[0m %s\n",$$1,$$2}'
 
-set-repo: ## Point all Argo CD Applications at your fork: make set-repo REPO=https://github.com/<you>/ai-platform-lab.git
-	@test -n "$(REPO)" || (echo "usage: make set-repo REPO=https://github.com/<you>/ai-platform-lab.git" && exit 1)
-	@grep -rl 'https://github.com/REPLACE_ME/ai-platform-lab.git' gitops | xargs sed -i.bak 's#https://github.com/REPLACE_ME/ai-platform-lab.git#$(REPO)#g'
+set-repo: ## Point all Argo CD Applications at your fork: make set-repo REPO=https://github.com/<you>/sunn-platform-lab.git
+	@test -n "$(REPO)" || (echo "usage: make set-repo REPO=https://github.com/<you>/sunn-platform-lab.git" && exit 1)
+	@grep -rl 'https://github.com/REPLACE_ME/sunn-platform-lab.git' gitops | xargs sed -i.bak 's#https://github.com/REPLACE_ME/sunn-platform-lab.git#$(REPO)#g'
 	@find gitops -name '*.bak' -delete
 	@echo "repoURL set to $(REPO) — commit and push."
 

@@ -1,4 +1,4 @@
-# AI Platform Lab
+# Sunn Platform Lab
 
 > A hands-on, GitOps-driven lab for running AI workloads in production on Kubernetes:
 > **GitOps → model serving → GPU scheduling → AI observability → AI autoscaling.**
@@ -95,7 +95,7 @@ bootstrap/, scripts/  kind cluster + Argo CD bootstrap, load generator
 
 ```bash
 # 0. Point the Argo CD Applications at YOUR fork
-make set-repo REPO=https://github.com/<you>/ai-platform-lab.git
+make set-repo REPO=https://github.com/<you>/sunn-platform-lab.git
 
 # 1. Local cluster (skip if you already have one)
 make cluster

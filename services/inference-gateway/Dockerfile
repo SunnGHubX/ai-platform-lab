@@ -8,7 +8,7 @@ RUN pip install --prefix=/install -r requirements.txt
 
 # ---- runtime stage: minimal, non-root, read-only friendly ----
 FROM python:3.12-slim
-LABEL org.opencontainers.image.source="https://github.com/SunnGHubX/ai-platform-lab" \
+LABEL org.opencontainers.image.source="https://github.com/SunnGHubX/sunn-platform-lab" \
       org.opencontainers.image.description="Secure front door for OpenAI-compatible model servers" \
       org.opencontainers.image.licenses="MIT"
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1

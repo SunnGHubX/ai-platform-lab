@@ -29,6 +29,6 @@ Verify a published image:
 
 ```bash
 cosign verify ghcr.io/sunnghubx/inference-gateway:0.1.0 \
-  --certificate-identity-regexp 'https://github.com/SunnGHubX/ai-platform-lab/.*' \
+  --certificate-identity-regexp 'https://github.com/SunnGHubX/sunn-platform-lab/.*' \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com
 ```

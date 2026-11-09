@@ -3,7 +3,7 @@ kind: Kustomization
 namespace: inference
 labels:
   - pairs:
-      app.kubernetes.io/part-of: ai-platform-lab
+      app.kubernetes.io/part-of: sunn-platform-lab
 resources:
   - serviceaccount.yaml
   - deployment.yaml

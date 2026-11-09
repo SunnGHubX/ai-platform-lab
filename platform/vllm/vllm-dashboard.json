@@ -1,6 +1,6 @@
 {
-  "title": "vLLM \u2013 AI Platform Lab",
-  "uid": "vllm-ai-platform-lab",
+  "title": "vLLM \u2013 Sunn Platform Lab",
+  "uid": "vllm-sunn-platform-lab",
   "schemaVersion": 39,
   "version": 1,
   "time": {
@@ -11,7 +11,7 @@
   "tags": [
     "vllm",
     "llm",
-    "ai-platform-lab"
+    "sunn-platform-lab"
   ],
   "templating": {
     "list": [

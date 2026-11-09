@@ -22,7 +22,7 @@ tests:
             exp_annotations:
               summary: Inference error budget burning 14.4x too fast
               description: More than 7.2% of gateway requests are failing over 1h and 5m. The 30-day error budget is gone in ~2 days at this rate.
-              runbook_url: https://github.com/SunnGHubX/ai-platform-lab/blob/main/docs/runbooks/InferenceAvailabilityFastBurn.md
+              runbook_url: https://github.com/SunnGHubX/sunn-platform-lab/blob/main/docs/runbooks/InferenceAvailabilityFastBurn.md
       # 'for: 2m' means nothing fires in the first minute of breach
       - eval_time: 1m
         alertname: InferenceAvailabilityFastBurn
@@ -72,7 +72,7 @@ tests:
             exp_annotations:
               summary: Inference latency budget burning 14.4x too fast
               description: More than 72% of requests are slower than 2.5s over 1h and 5m.
-              runbook_url: https://github.com/SunnGHubX/ai-platform-lab/blob/main/docs/runbooks/InferenceLatencyFastBurn.md
+              runbook_url: https://github.com/SunnGHubX/sunn-platform-lab/blob/main/docs/runbooks/InferenceLatencyFastBurn.md
 
   # Recording rule math
   - interval: 1m
@@ -102,4 +102,4 @@ tests:
             exp_annotations:
               summary: vLLM has had more than 20 queued requests for 10 minutes
               description: KEDA should be adding replicas. Check for GPU capacity (Pending pods) or a stuck ScaledObject.
-              runbook_url: https://github.com/SunnGHubX/ai-platform-lab/blob/main/docs/runbooks/VLLMQueueBacklog.md
+              runbook_url: https://github.com/SunnGHubX/sunn-platform-lab/blob/main/docs/runbooks/VLLMQueueBacklog.md

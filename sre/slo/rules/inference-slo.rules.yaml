@@ -45,7 +45,7 @@ groups:
         annotations:
           summary: Inference error budget burning 14.4x too fast
           description: More than 7.2% of gateway requests are failing over 1h and 5m. The 30-day error budget is gone in ~2 days at this rate.
-          runbook_url: https://github.com/SunnGHubX/ai-platform-lab/blob/main/docs/runbooks/InferenceAvailabilityFastBurn.md
+          runbook_url: https://github.com/SunnGHubX/sunn-platform-lab/blob/main/docs/runbooks/InferenceAvailabilityFastBurn.md
 
       # 6x burn for 6h = 5% of budget -> page.
       - alert: InferenceAvailabilitySlowBurn
@@ -57,7 +57,7 @@ groups:
         annotations:
           summary: Inference error budget burning 6x too fast
           description: More than 3% of gateway requests are failing over 6h and 30m.
-          runbook_url: https://github.com/SunnGHubX/ai-platform-lab/blob/main/docs/runbooks/InferenceAvailabilityFastBurn.md
+          runbook_url: https://github.com/SunnGHubX/sunn-platform-lab/blob/main/docs/runbooks/InferenceAvailabilityFastBurn.md
 
       # 1x burn over 3 days = on track to miss the SLO -> ticket, not a page.
       - alert: InferenceAvailabilityBudgetDrain
@@ -69,7 +69,7 @@ groups:
         annotations:
           summary: Inference availability is trending to miss its 30-day SLO
           description: Error ratio has stayed above 0.5% for 3 days. Prioritise reliability work per the error budget policy.
-          runbook_url: https://github.com/SunnGHubX/ai-platform-lab/blob/main/docs/runbooks/InferenceAvailabilityFastBurn.md
+          runbook_url: https://github.com/SunnGHubX/sunn-platform-lab/blob/main/docs/runbooks/InferenceAvailabilityFastBurn.md
 
       - alert: InferenceLatencyFastBurn
         expr: slo:gateway_slow:ratio_rate1h > (14.4 * 0.05) and slo:gateway_slow:ratio_rate5m > (14.4 * 0.05)
@@ -80,7 +80,7 @@ groups:
         annotations:
           summary: Inference latency budget burning 14.4x too fast
           description: More than 72% of requests are slower than 2.5s over 1h and 5m.
-          runbook_url: https://github.com/SunnGHubX/ai-platform-lab/blob/main/docs/runbooks/InferenceLatencyFastBurn.md
+          runbook_url: https://github.com/SunnGHubX/sunn-platform-lab/blob/main/docs/runbooks/InferenceLatencyFastBurn.md
 
       - alert: InferenceLatencySlowBurn
         expr: slo:gateway_slow:ratio_rate6h > (6 * 0.05) and slo:gateway_slow:ratio_rate30m > (6 * 0.05)
@@ -91,7 +91,7 @@ groups:
         annotations:
           summary: Inference latency budget burning 6x too fast
           description: More than 30% of requests are slower than 2.5s over 6h and 30m.
-          runbook_url: https://github.com/SunnGHubX/ai-platform-lab/blob/main/docs/runbooks/InferenceLatencyFastBurn.md
+          runbook_url: https://github.com/SunnGHubX/sunn-platform-lab/blob/main/docs/runbooks/InferenceLatencyFastBurn.md
 
   - name: inference-saturation
     rules:
@@ -104,7 +104,7 @@ groups:
         annotations:
           summary: vLLM has had more than 20 queued requests for 10 minutes
           description: KEDA should be adding replicas. Check for GPU capacity (Pending pods) or a stuck ScaledObject.
-          runbook_url: https://github.com/SunnGHubX/ai-platform-lab/blob/main/docs/runbooks/VLLMQueueBacklog.md
+          runbook_url: https://github.com/SunnGHubX/sunn-platform-lab/blob/main/docs/runbooks/VLLMQueueBacklog.md
 
       - alert: VLLMKVCacheSaturated
         expr: avg(vllm:kv_cache_usage_perc) > 0.95
@@ -114,4 +114,4 @@ groups:
         annotations:
           summary: vLLM KV cache above 95% for 15 minutes
           description: Requests are being preempted. Lower max-model-len, add replicas, or move to a larger GPU.
-          runbook_url: https://github.com/SunnGHubX/ai-platform-lab/blob/main/docs/runbooks/VLLMQueueBacklog.md
+          runbook_url: https://github.com/SunnGHubX/sunn-platform-lab/blob/main/docs/runbooks/VLLMQueueBacklog.md

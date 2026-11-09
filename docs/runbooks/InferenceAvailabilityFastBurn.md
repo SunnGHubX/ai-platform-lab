@@ -4,7 +4,7 @@
 |---|---|
 | **SLO** | 99.5% of gateway requests are non-5xx over 30 days |
 | **Severity** | FastBurn / SlowBurn → page · BudgetDrain → ticket |
-| **Dashboards** | Grafana → *vLLM – AI Platform Lab*, *Kubernetes / Compute Resources / Namespace (inference)* |
+| **Dashboards** | Grafana → *vLLM – Sunn Platform Lab*, *Kubernetes / Compute Resources / Namespace (inference)* |
 | **Owner** | platform team |
 
 ## 1. Confirm impact (2 min)

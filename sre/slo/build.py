@@ -24,7 +24,7 @@ def build() -> list[str]:
             "kind": "PrometheusRule",
             "metadata": {
                 "name": name,
-                "labels": {"app.kubernetes.io/part-of": "ai-platform-lab", "role": "slo"},
+                "labels": {"app.kubernetes.io/part-of": "sunn-platform-lab", "role": "slo"},
             },
             "spec": yaml.safe_load(src.read_text()),
         }

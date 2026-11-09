@@ -6,7 +6,7 @@ ARGOCD_CHART_VERSION="${ARGOCD_CHART_VERSION:-10.17.0}"
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 if grep -q "REPLACE_ME" "${ROOT_DIR}/gitops/root-app.yaml"; then
-  echo "ERROR: run 'make set-repo REPO=https://github.com/<you>/ai-platform-lab.git' first." >&2
+  echo "ERROR: run 'make set-repo REPO=https://github.com/<you>/sunn-platform-lab.git' first." >&2
   exit 1
 fi
 

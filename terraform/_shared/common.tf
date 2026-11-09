@@ -64,6 +64,6 @@ locals {
     Owner       = var.owner
     CostCenter  = var.cost_center
     ManagedBy   = "terraform"
-    Repository  = "SunnGHubX/ai-platform-lab"
+    Repository  = "SunnGHubX/sunn-platform-lab"
   }
 }
