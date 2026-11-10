@@ -27,8 +27,8 @@ jobs:
   unit:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
       - run: pip install pytest
@@ -43,8 +43,8 @@ jobs:
         os: [ubuntu-latest, macos-latest]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
       - name: install pinned tools into ./.bin (macOS runners have no Docker)
@@ -68,8 +68,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 40
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
       - name: make up (installs pinned tools first)
@@ -98,8 +98,8 @@ jobs:
       ENDPOINT: https://localhost:5000   # TLS required: the state bucket policy denies plain HTTP
       MOTO_IAM_LOAD_MANAGED_POLICIES: "true"   # ReadOnlyAccess / AdministratorAccess must exist to attach
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
       - name: tools + fake AWS
@@ -138,7 +138,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: build + start (runs post-create)
         run: npx --yes @devcontainers/cli@0 up --workspace-folder .
       - name: prereqs inside the container

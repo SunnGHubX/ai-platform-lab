@@ -26,10 +26,10 @@ jobs:
       run:
         working-directory: terraform
     steps:
-      - uses: actions/checkout@v4
-      - uses: hashicorp/setup-terraform@v3
+      - uses: actions/checkout@v7
+      - uses: hashicorp/setup-terraform@v4
 
-      - uses: aws-actions/configure-aws-credentials@v4
+      - uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume: ${{ vars[format('AWS_PLAN_ROLE_ARN_{0}', matrix.env)] }}
           aws-region: us-west-2

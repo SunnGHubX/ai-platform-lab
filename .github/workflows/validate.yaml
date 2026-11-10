@@ -14,7 +14,7 @@ jobs:
   validate:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: yamllint
         run: pip install yamllint && yamllint .
@@ -47,9 +47,9 @@ jobs:
       run:
         working-directory: terraform
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: hashicorp/setup-terraform@v3
+      - uses: hashicorp/setup-terraform@v4
 
       - name: terraform fmt
         run: terraform fmt -check -recursive -diff
@@ -60,7 +60,7 @@ jobs:
       - name: terraform test (unit tests, mocked AWS provider)
         run: make test
 
-      - uses: terraform-linters/setup-tflint@v4
+      - uses: terraform-linters/setup-tflint@v6
 
       - name: tflint
         run: make lint
@@ -76,7 +76,7 @@ jobs:
     name: policy-as-code (OPA / Conftest)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: rego unit tests
         run: docker run --rm -v "$PWD:/p" -w /p openpolicyagent/conftest:latest verify --policy policy/kubernetes --report notes
       - name: enforce policies on every rendered platform component
@@ -92,7 +92,7 @@ jobs:
     name: SLO rules (promtool) + generated output drift
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: promtool check rules
         run: docker run --rm -v "$PWD:/w" -w /w --entrypoint promtool prom/prometheus:latest check rules sre/slo/rules/*.rules.yaml
       - name: promtool test rules (alert unit tests, every file)
@@ -113,15 +113,15 @@ jobs:
       run:
         working-directory: network
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
       - run: pip install pytest jinja2 pyyaml
       - run: pytest -q
       - name: render all configs (artifact for review)
         run: python3 -m netgen fabric/fabric.yaml --out build
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: fabric-configs
           path: network/build/
@@ -133,8 +133,8 @@ jobs:
       run:
         working-directory: ansible
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
       - run: pip install ansible-core ansible-lint
@@ -146,8 +146,8 @@ jobs:
     name: ops tooling (triage, drills, ci-doctor, health) + doc links
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
       - run: pip install pytest pyyaml
