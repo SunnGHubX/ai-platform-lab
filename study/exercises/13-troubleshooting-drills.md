@@ -1,5 +1,7 @@
 # 13 · Troubleshooting drills
 
+**Hands-on version:** the same failure classes run as live break-fix drills: `make drill SCENARIO=netpol-dns PRACTICE=1` or the **troubleshoot** workflow with *practice* ticked. Diagnose from the bundle before reading the answer. See [docs/troubleshooting.md](../../docs/troubleshooting.md).
+
 Practise out loud: **hypothesis → command → what you expect → what it means**. Timebox each to 10 minutes. Answers in the collapsed sections. Try first!
 
 ### A. vLLM pod `Pending` forever after a deploy ★★

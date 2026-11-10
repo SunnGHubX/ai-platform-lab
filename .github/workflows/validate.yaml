@@ -140,3 +140,23 @@ jobs:
       - run: ansible-galaxy collection install -r requirements.yml
       - run: ansible-lint
       - run: ansible-playbook --syntax-check playbooks/gpu_nodes.yml playbooks/network_deploy.yml
+
+  tooling:
+    name: ops tooling (triage, drills, ci-doctor, health) + doc links
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install pytest pyyaml
+      - name: triage analyzers
+        run: cd scripts/triage && pytest -q -p no:cacheprovider
+      - name: drill catalogue
+        run: cd tests/drills && pytest -q -p no:cacheprovider
+      - name: ci-doctor classifier
+        run: cd .github/scripts && pytest -q -p no:cacheprovider
+      - name: repo health (incl. no broken doc links)
+        run: cd scripts/health && pytest -q -p no:cacheprovider
+      - name: shellcheck ops scripts
+        run: shellcheck tests/e2e/run.sh tests/drills/run_drill.sh .github/scripts/*.sh

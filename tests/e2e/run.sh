@@ -11,6 +11,8 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 CLUSTER="${CLUSTER:-sunn-e2e}"
 KEEP_CLUSTER="${KEEP_CLUSTER:-false}"
+E2E_SKIP_TESTS="${E2E_SKIP_TESTS:-false}"   # true = just stand the platform up (used by break-fix drills)
+BUNDLE_DIR="${BUNDLE_DIR:-}"                # where to write a triage debug bundle on failure
 WORK="$(mktemp -d)"
 PF_PIDS=()
 cd "$ROOT"
@@ -61,8 +63,18 @@ for p in json.load(sys.stdin)["items"]:
 
 cleanup() {
   rc=$?
-  for pid in "${PF_PIDS[@]:-}"; do [ -n "$pid" ] && { pkill -P "$pid" 2>/dev/null; kill "$pid" 2>/dev/null; } || true; done
-  [ $rc -ne 0 ] && diagnostics
+  for pid in "${PF_PIDS[@]:-}"; do
+    if [ -n "$pid" ]; then pkill -P "$pid" 2>/dev/null || true; kill "$pid" 2>/dev/null || true; fi
+  done
+  if [ $rc -ne 0 ]; then
+    diagnostics
+    if [ -n "$BUNDLE_DIR" ]; then
+      group "triage bundle -> $BUNDLE_DIR"
+      python3 scripts/triage/triage.py --out "$BUNDLE_DIR" --prom-url http://127.0.0.1:19090 \
+        ${GITHUB_STEP_SUMMARY:+--summary "$GITHUB_STEP_SUMMARY"} || true
+      endgroup
+    fi
+  fi
   if [ "$KEEP_CLUSTER" != "true" ]; then kind delete cluster --name "$CLUSTER" >/dev/null 2>&1 || true; fi
   rm -rf "$WORK"
   exit $rc
@@ -132,6 +144,8 @@ kubectl -n observability patch svc otel-collector-opentelemetry-collector \
   -p '{"spec":{"type":"NodePort","ports":[{"name":"otlp-http","port":4318,"nodePort":30318}]}}'
 for p in 18080 19090 15000 14318; do wait_port "$p"; done
 endgroup
+
+if [ "$E2E_SKIP_TESTS" = "true" ]; then echo "E2E_SKIP_TESTS=true: platform is up, skipping smoke tests"; exit 0; fi
 
 group "smoke tests"
 GATEWAY_URL=http://localhost:18080 PROM_URL=http://localhost:19090 \

@@ -16,3 +16,6 @@ crash.log
 .coverage
 .ruff_cache/
 network/build/
+
+# triage bundles
+triage-bundle-*/

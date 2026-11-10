@@ -1,0 +1,42 @@
+# Diagnoses every failed pipeline: classifies the failure from the job logs (transient vs. real,
+# which tool, which test), writes it to the run summary and keeps ONE up-to-date comment on the PR.
+# Also runnable by hand for any past run: Actions → ci-doctor → Run workflow → run_id.
+name: ci-doctor
+
+on:
+  workflow_run:
+    workflows: [validate, e2e, security, inference-gateway, exercise, troubleshoot, codeql, run-tests]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: Workflow run id to diagnose (from the run's URL)
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'failure'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read          # read job logs
+      pull-requests: write   # comment the diagnosis on the PR
+    steps:
+      # workflow_run always runs the default-branch version of this file + script (safe for fork PRs:
+      # we only read logs and post text; nothing from the PR is executed).
+      - uses: actions/checkout@v4
+      - name: diagnose
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          RUN_ID: ${{ inputs.run_id || github.event.workflow_run.id }}
+          PRS: ${{ toJSON(github.event.workflow_run.pull_requests) }}
+        run: |
+          args=()
+          for pr in $(echo "${PRS:-[]}" | python3 -c 'import json,sys; d=json.load(sys.stdin) or []; print(" ".join(str(p["number"]) for p in d))'); do
+            args+=(--pr "$pr")
+          done
+          python3 .github/scripts/ci_doctor.py --repo "$REPO" --run-id "$RUN_ID" "${args[@]}"
