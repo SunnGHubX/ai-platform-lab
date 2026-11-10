@@ -67,7 +67,9 @@ More detail in [docs/architecture.md](docs/architecture.md).
 
 Run every suite: `make test` · end-to-end on kind: `make e2e` · exercise status: `make exercises`.
 
-**CI/CD** ([docs/ci-cd.md](docs/ci-cd.md)): every PR runs static validation, unit tests, policy and security scans; a **nightly e2e** stands the platform up on kind and runs 12 smoke tests; exercise branches (`ex/NN-*`) are graded automatically.
+**CI/CD** ([docs/ci-cd.md](docs/ci-cd.md)): **`full-verification`** runs every suite against `main` nightly (or on demand) and opens an issue if `main` breaks; every PR runs static validation, unit tests, policy and security scans; a **nightly e2e** stands the platform up on kind and runs 12 smoke tests; exercise branches (`ex/NN-*`) are graded automatically.
+
+**Troubleshooting** ([docs/troubleshooting.md](docs/troubleshooting.md)): `make triage` turns any cluster into a debug bundle with named root causes; **ci-doctor** explains every failed pipeline on the PR; **troubleshoot** runs break-fix drills (OOM, image pull, GPU pending, selector mismatch, NetworkPolicy DNS, KEDA, probes, SLO burn) on kind; **run-tests** reruns any suite with debug output.
 
 ## Repo layout
 
@@ -91,35 +93,37 @@ bootstrap/, scripts/  kind cluster + Argo CD bootstrap, load generator
 
 [`terraform/`](terraform) builds the cloud foundation: account-isolated dev/staging/prod, VPC, EKS with a scale-from-zero GPU node pool, and a service catalog that gives each microservice its own ECR repo, SQS queue, S3 bucket, secrets, Postgres and least-privilege Pod Identity role. See [terraform/README.md](terraform/README.md).
 
-## Quickstart (local kind cluster)
+## Quickstart
 
-**Prereqs:** `docker`, `kind`, `kubectl`, `helm`. GPU components (vLLM, Triton GPU) need a node with an NVIDIA GPU + the [NVIDIA GPU Operator](https://github.com/NVIDIA/gpu-operator) or device plugin — everything else runs on a laptop.
+Pick one. All three use the same pinned tool versions ([`mise.toml`](mise.toml)) as CI.
 
-```bash
-# 0. Point the Argo CD Applications at YOUR fork
-make set-repo REPO=https://github.com/<you>/sunn-platform-lab.git
-
-# 1. Local cluster (skip if you already have one)
-make cluster
-
-# 2. Install Argo CD and hand it the root app
-make bootstrap
-
-# 3. Watch it converge
-kubectl -n argocd get applications -w
-
-# 4. UIs
-make argocd-ui     # https://localhost:8080  (user: admin, pw printed by `make argocd-password`)
-make grafana-ui    # http://localhost:3000   (admin / prom-operator — change it)
-make mlflow-ui     # http://localhost:5000
-```
-
-The core stack (GitOps, KEDA, observability, MLflow) runs on a laptop. When you have a GPU node, turn on inference:
+| Path | Steps | Best for |
+|---|---|---|
+| **Codespaces / devcontainer** | *Code → Codespaces → Create* (or "Reopen in Container" in VS Code), then `make up` | zero local setup |
+| **Your laptop** | `make prereqs-install` (pinned, checksum-verified tools into `./.bin`) → `make up` | daily work |
+| **mise users** | `mise install` → `make up` | if you already use mise/asdf |
 
 ```bash
-make inference     # applies gitops/root-inference.yaml → vLLM (GPU) + Triton
-make vllm-api      # http://localhost:8000/v1/chat/completions
+make prereqs              # what's missing? (tools, Docker running + memory, ports)
+make up                   # kind -> Argo CD -> app-of-apps -> waits until every app is Synced/Healthy
+INFERENCE=1 make up       # + vLLM/Triton/gateway (vLLM needs a GPU node)
+make down                 # delete the cluster
 ```
+
+`make up` is idempotent: re-run it to repair whatever drifted. It prints the Argo CD / Grafana / MLflow URLs and passwords when done.
+
+### AWS
+
+```bash
+aws sso login --profile dev                                     # your normal credentials; nothing is stored
+make aws-bootstrap ENV=dev ACCOUNT_ID=123456789012 DRY_RUN=1    # see every action first
+make aws-bootstrap ENV=dev ACCOUNT_ID=123456789012              # state bucket + CI roles, state migrated into S3,
+                                                                # envs/dev configured, GitHub variables set
+make aws-bootstrap ENV=dev ACCOUNT_ID=123456789012 APPLY=1      # ...and apply network -> eks -> services
+make aws-teardown ENV=dev                                       # reverse order; never prod; keeps the state bucket
+```
+
+Details: [terraform/README.md](terraform/README.md). The bootstrap is tested in CI against a fake AWS (moto), including the state migration and an idempotent re-run.
 
 ## Pinned versions
 

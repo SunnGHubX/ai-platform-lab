@@ -1,0 +1,145 @@
+# Proves the "zero to running" paths keep working:
+#   prereqs on Linux + macOS (real downloads, checksum-verified), `make up` on kind (real GitOps sync
+#   from GitHub), the AWS bootstrap against a fake AWS (moto) incl. state migration + idempotent re-run,
+#   and the devcontainer build.
+name: bootstrap
+
+on:
+  workflow_call:
+  pull_request:
+    paths:
+      - "scripts/bootstrap/**"
+      - "mise.toml"
+      - ".devcontainer/**"
+      - "bootstrap/**"
+      - "terraform/envs/_global/**"
+      - "terraform/modules/state-backend/**"
+      - "Makefile"
+      - ".github/workflows/bootstrap.yaml"
+  schedule:
+    - cron: "17 9 * * 3"   # weekly: upstream download URLs and charts drift
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  unit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install pytest
+      - run: cd scripts/bootstrap && pytest -q -p no:cacheprovider
+
+  prereqs:
+    name: prereqs install (${{ matrix.os }})
+    needs: unit
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: install pinned tools into ./.bin (macOS runners have no Docker)
+        run: |
+          python3 scripts/bootstrap/prereqs.py --profile iac --install
+          python3 scripts/bootstrap/prereqs.py --profile lab --install --skip-docker
+      - name: tools resolve from ./.bin at the pinned versions
+        run: |
+          export PATH="$PWD/.bin:$PATH"
+          for t in terraform tflint kubectl helm kind; do printf '%-10s ' "$t"; command -v "$t"; done
+          terraform version | head -1; tflint --version | head -1; kubectl version --client | head -1
+          helm version --short; kind version
+          python3 scripts/bootstrap/prereqs.py --profile iac
+          python3 scripts/bootstrap/prereqs.py --profile lab --skip-docker
+      - name: idempotent (second install is a no-op)
+        run: python3 scripts/bootstrap/prereqs.py --profile iac --install | grep -v '^installing'
+
+  make-up:
+    name: make up (kind + Argo CD + GitOps sync)
+    needs: unit
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: make up (installs pinned tools first)
+        env:
+          UP_INSTALL: "1"
+        run: make up
+      - name: re-run is idempotent
+        run: make up
+      - name: triage the result (should be clean)
+        if: always()
+        run: |
+          export PATH="$PWD/.bin:$PATH"
+          python3 scripts/triage/triage.py --out "$RUNNER_TEMP/up-bundle" --summary "$GITHUB_STEP_SUMMARY" || true
+      - name: make down
+        if: always()
+        run: make down
+
+  aws-bootstrap:
+    name: aws bootstrap against moto (state migration + idempotency)
+    needs: unit
+    runs-on: ubuntu-latest
+    env:
+      AWS_ACCESS_KEY_ID: testing
+      AWS_SECRET_ACCESS_KEY: testing
+      AWS_DEFAULT_REGION: us-east-1
+      ENDPOINT: https://localhost:5000   # TLS required: the state bucket policy denies plain HTTP
+      MOTO_IAM_LOAD_MANAGED_POLICIES: "true"   # ReadOnlyAccess / AdministratorAccess must exist to attach
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: tools + fake AWS
+        run: |
+          ./.github/scripts/install-terraform.sh
+          pip install -q "moto[server]" pyopenssl
+          # S3 Control calls go to <account>.localhost; make that resolve regardless of the runner's resolver
+          echo "127.0.0.1 123456789012.localhost" | sudo tee -a /etc/hosts
+          nohup moto_server -H 127.0.0.1 -p 5000 --ssl > "$RUNNER_TEMP/moto.log" 2>&1 &
+          for _ in $(seq 1 30); do curl -skf "$ENDPOINT/moto-api/" >/dev/null && break; sleep 1; done
+      - name: first run (local state -> apply -> migrate into S3 -> configure env files)
+        run: python3 scripts/bootstrap/aws_bootstrap.py --env dev --account-id 123456789012 --region us-east-1 --endpoint "$ENDPOINT" --skip-github
+      - name: assertions
+        run: |
+          aws --endpoint-url "$ENDPOINT" --no-verify-ssl s3api head-object --bucket ai-platform-tfstate-123456789012-us-east-1 \
+            --key _global/bootstrap/dev/terraform.tfstate > /dev/null && echo "✅ state is in the bucket"
+          test ! -e terraform/envs/_global/bootstrap/state/dev.tfstate && echo "✅ no local tfstate left behind"
+          grep -q 'bucket       = "ai-platform-tfstate-123456789012-us-east-1"' terraform/envs/dev/backend.hcl && echo "✅ backend.hcl configured"
+          grep -q 'account_id  = "123456789012"' terraform/envs/dev/common.tfvars && echo "✅ common.tfvars configured"
+          git diff --quiet terraform/envs/staging terraform/envs/prod && echo "✅ other envs untouched"
+      - name: second run is idempotent (state found in S3, apply = no changes)
+        run: |
+          python3 scripts/bootstrap/aws_bootstrap.py --env dev --account-id 123456789012 --region us-east-1 --endpoint "$ENDPOINT" --skip-github | tee "$RUNNER_TEMP/run2.log"
+          grep -q "already in S3" "$RUNNER_TEMP/run2.log"
+          # Idempotent = nothing created or destroyed. (moto doesn't persist bucket tags written via S3 Control,
+          # so the provider re-applies tags in place on every run; real AWS converges to "No changes".)
+          grep -qE "No changes|Resources: 0 added, [0-9]+ changed, 0 destroyed" "$RUNNER_TEMP/run2.log" && echo "✅ re-run creates/destroys nothing"
+          git diff --quiet -- terraform/envs/dev || { git diff --stat; echo "(expected: first run already configured envs/dev)"; }
+      - name: moto log (on failure)
+        if: failure()
+        run: tail -100 "$RUNNER_TEMP/moto.log"
+
+  devcontainer:
+    name: devcontainer builds and has every tool
+    needs: unit
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: build + start (runs post-create)
+        run: npx --yes @devcontainers/cli@0 up --workspace-folder .
+      - name: prereqs inside the container
+        run: npx --yes @devcontainers/cli@0 exec --workspace-folder . python3 scripts/bootstrap/prereqs.py --profile all

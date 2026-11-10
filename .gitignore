@@ -16,3 +16,12 @@ crash.log
 .coverage
 .ruff_cache/
 network/build/
+
+# triage bundles
+triage-bundle-*/
+
+# bootstrap
+.bin/
+terraform/envs/_global/bootstrap/backend_override.tf
+terraform/envs/_global/bootstrap/provider_override.tf
+terraform/envs/_global/bootstrap/state/

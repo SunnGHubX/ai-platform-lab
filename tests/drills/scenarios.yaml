@@ -1,0 +1,96 @@
+# Break-fix drills: real faults injected into the e2e platform on kind.
+# For each scenario the `troubleshoot` workflow:
+#   1. stands up the platform, 2. runs `break`, 3. shows the SYMPTOM,
+#   4. requires scripts/triage to detect every id in `expect`, 5. runs `fix`, 6. verifies recovery.
+# Practise first: run with `--no-reveal`, diagnose from the bundle yourself, then compare.
+
+oom:
+  title: Gateway pods keep restarting after a "cost optimisation" PR
+  symptom: inference-gateway pods restart every few seconds; users get intermittent 503s.
+  break:
+    - kubectl -n inference set resources deploy/inference-gateway -c gateway --limits=memory=12Mi --requests=memory=12Mi
+  expect: [OOMKILLED]
+  root_cause: Memory limit (12Mi) is below what a Python/uvicorn worker needs at import time, so the kernel OOM-kills it.
+  lesson: Check `lastState.terminated.reason`; size limits from observed usage (`container_memory_working_set_bytes`), not guesses.
+
+image-pull:
+  title: Deploy is stuck halfway
+  symptom: "`kubectl rollout status` hangs; one new gateway pod never starts, old pods still serve."
+  break:
+    - kubectl -n inference set image deploy/inference-gateway gateway=ghcr.io/sunnghubx/inference-gateway:9.9.9-typo
+  expect: [IMAGE_PULL]
+  root_cause: The image tag doesn't exist (typo / never pushed). Rolling update protects users by keeping old pods.
+  lesson: Pin tags that CI actually pushed; with immutable tags + signatures, admission can reject unknown images up front.
+
+gpu-pending:
+  title: New model server never comes up
+  symptom: vllm pod stays Pending for minutes; queue depth climbs.
+  break:
+    - >-
+      kubectl -n inference patch deploy vllm --type json
+      -p '[{"op":"add","path":"/spec/template/spec/containers/0/resources/limits/nvidia.com~1gpu","value":"1"}]'
+  expect: [UNSCHEDULABLE_GPU]
+  # Re-applying manifests does NOT fix this one: `kubectl apply` only removes fields it applied before,
+  # and the GPU limit came from an imperative patch. Roll back the Deployment instead.
+  fix:
+    - kubectl -n inference rollout undo deploy/vllm
+    - kubectl -n inference rollout status deploy/vllm --timeout=180s
+  root_cause: The pod requests nvidia.com/gpu and no node advertises free GPUs (pool at max, scale-from-zero tags missing, or no device plugin).
+  lesson: >-
+    Read the PodScheduled condition message: it tells you exactly which resource or taint blocked scheduling.
+    Bonus gotcha: `kubectl apply` can't remove a field added by `kubectl patch`/`set` (three-way merge only
+    prunes fields it applied itself); use `rollout undo`, server-side apply with --force-conflicts, or let Argo CD
+    self-heal, which is why imperative hotfixes in a GitOps cluster are a trap.
+
+selector-mismatch:
+  title: Gateway returns 502 after a label refactor
+  symptom: Every chat request fails with 502; vLLM pods look healthy.
+  break:
+    - kubectl -n inference patch svc vllm -p '{"spec":{"selector":{"app.kubernetes.io/name":"vllm-v2"}}}'
+  expect: [SERVICE_NO_ENDPOINTS]
+  root_cause: The vllm Service selector no longer matches the pod labels, so it has zero endpoints.
+  lesson: "`kubectl get endpointslices -l kubernetes.io/service-name=vllm` is the first check for 'healthy pods, broken service'."
+
+netpol-dns:
+  title: Gateway became unready right after a "tighten egress" change
+  symptom: Gateway readiness fails with upstream unavailable, though vLLM is up.
+  break:
+    - kubectl -n inference patch networkpolicy inference-gateway --type json -p '[{"op":"remove","path":"/spec/egress/1"}]'
+  expect: [NETPOL_NO_DNS]
+  root_cause: The egress policy no longer allows port 53 to kube-dns, so `vllm.inference.svc` can't be resolved.
+  lesson: Every egress-restricted pod needs an explicit DNS allow (and NodeLocal DNSCache's link-local IP if used).
+
+keda-broken:
+  title: Autoscaling silently stopped
+  symptom: Queue depth is high but vllm stays at 1 replica.
+  break:
+    - >-
+      kubectl -n inference patch scaledobject vllm --type json
+      -p '[{"op":"replace","path":"/spec/triggers/0/metadata/threshold","value":"not-a-number"}]'
+  expect: [SCALEDOBJECT_NOT_READY]
+  root_cause: An invalid trigger config makes the ScaledObject not Ready; KEDA stops managing the HPA.
+  lesson: Alert on `keda_scaled_object_errors` / ScaledObject Ready=False. Silent autoscaling failures become capacity incidents.
+
+probe-failure:
+  title: Rollout of a new gateway build never completes
+  symptom: New pods are Running but 0/1 Ready; rollout times out.
+  break:
+    - >-
+      kubectl -n inference patch deploy inference-gateway --type json
+      -p '[{"op":"replace","path":"/spec/template/spec/containers/0/readinessProbe/httpGet/path","value":"/healthcheck"}]'
+  expect: [PROBE_FAILING]
+  root_cause: The readiness probe points at a path the app doesn't serve (404), so the pod never becomes Ready.
+  lesson: "Unhealthy events carry the HTTP status: 404 = wrong path, connection refused = wrong port/not listening, timeout = slow app or CPU throttling."
+
+slo-burn:
+  title: Users report errors; is it bad enough to page?
+  symptom: A spike of 5xx at the gateway.
+  break: []
+  load: fail           # drill generates failing traffic through the gateway during detection
+  needs_prometheus: true
+  expect: [ALERT_FIRING]
+  timeout: 420
+  fix: []              # stop the bad traffic; the alert resolves on its own as the 5m window recovers
+  verify: false
+  root_cause: The upstream engine is failing requests; the error ratio exceeds 14.4x the error budget burn, so InferenceAvailabilityFastBurn fires.
+  lesson: Symptom-based SLO alerts page on user impact; follow the alert's runbook_url instead of guessing.

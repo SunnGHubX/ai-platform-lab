@@ -1,0 +1,86 @@
+# Everything, against main, in one run: static validation + unit tests, security scans, the service
+# pipeline, e2e on kind, all break-fix drills, and the bootstrap paths (Linux/macOS installer, make up,
+# AWS bootstrap on moto, devcontainer). One summary table; a failing nightly opens a "main is unstable"
+# issue, and the next green run closes it.
+name: full-verification
+
+on:
+  schedule:
+    - cron: "37 11 * * *"   # nightly, ~3:37am Pacific
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    uses: ./.github/workflows/validate.yaml
+
+  security:
+    uses: ./.github/workflows/security.yaml
+    permissions:
+      contents: read
+      security-events: write
+
+  gateway:
+    uses: ./.github/workflows/inference-gateway.yaml
+    permissions:            # max the called jobs declare; publish/sign steps are skipped (not a push event)
+      contents: read
+      packages: write
+      id-token: write
+      security-events: write
+
+  e2e:
+    uses: ./.github/workflows/e2e.yaml
+
+  drills:
+    uses: ./.github/workflows/troubleshoot.yaml
+    with:
+      scenario: all
+
+  bootstrap:
+    uses: ./.github/workflows/bootstrap.yaml
+
+  report:
+    name: stability report
+    needs: [validate, security, gateway, e2e, drills, bootstrap]
+    if: always()
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - name: summary + issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          EVENT: ${{ github.event_name }}
+          RESULTS: ${{ toJSON(needs) }}
+        run: |
+          python3 - <<'PY'
+          import json, os, subprocess
+          needs = json.loads(os.environ["RESULTS"])
+          icon = {"success": "✅", "failure": "❌", "cancelled": "⚪", "skipped": "⏭️"}
+          rows = [f"| {icon.get(v['result'], '❔')} | `{k}` | {v['result']} |" for k, v in needs.items()]
+          failed = [k for k, v in needs.items() if v["result"] in ("failure", "cancelled")]
+          md = "\n".join(["## Full verification of `main`", "", "| | Suite | Result |", "|---|---|---|", *rows, "",
+                          f"**{'🔴 UNSTABLE: ' + ', '.join(failed) if failed else '🟢 STABLE: every suite passed'}**",
+                          "", f"Failed suites are diagnosed by **ci-doctor** in their own runs. [This run]({os.environ['RUN_URL']})"])
+          open(os.environ["GITHUB_STEP_SUMMARY"], "a").write(md + "\n")
+
+          if os.environ["EVENT"] != "schedule":
+              raise SystemExit(1 if failed else 0)
+          title = "🔴 main is unstable (full-verification)"
+          gh = lambda *a, **k: subprocess.run(["gh", *a], check=True, text=True, capture_output=True, **k).stdout
+          open_issues = json.loads(gh("issue", "list", "--repo", os.environ["REPO"], "--state", "open",
+                                      "--search", f'in:title "{title}"', "--json", "number,title"))
+          existing = next((i["number"] for i in open_issues if i["title"] == title), None)
+          if failed and existing:
+              gh("issue", "comment", str(existing), "--repo", os.environ["REPO"], "--body", md)
+          elif failed:
+              gh("issue", "create", "--repo", os.environ["REPO"], "--title", title, "--body", md)
+          elif existing:
+              gh("issue", "close", str(existing), "--repo", os.environ["REPO"], "--comment", "🟢 Back to stable:\n\n" + md)
+          raise SystemExit(1 if failed else 0)
+          PY

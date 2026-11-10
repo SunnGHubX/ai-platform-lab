@@ -37,6 +37,20 @@ flowchart LR
 | `exercise` | branches `ex/NN-*`, PRs, on demand | That exercise's acceptance criteria (strict). On other PRs: status board of all exercises |
 | `terraform-plan` | PRs touching `terraform/` once AWS OIDC is set up | Real `terraform plan` per env × stack |
 
+### Full verification
+
+`full-verification` runs **every** suite against `main` (validate, security, gateway pipeline without publishing, e2e on kind, all 8 break-fix drills, bootstrap on Linux/macOS/kind/moto/devcontainer) **nightly** and on demand (Actions → full-verification → Run workflow). One summary table; a failing nightly opens a `🔴 main is unstable` issue that the next green run closes.
+
+### Troubleshooting & debugging workflows ([docs/troubleshooting.md](troubleshooting.md))
+
+| Workflow | Runs on | Purpose |
+|---|---|---|
+| `ci-doctor` | **every failed pipeline** (workflow_run) + on demand | Classifies the failure from job logs (transient vs real, tool, test names), writes the run summary, keeps one PR comment updated |
+| `run-tests` | on demand | Run any suite with a filter and debug verbosity; uploads JUnit, debug logs, triage bundle |
+| `troubleshoot` | on demand, weekly, PRs touching drills/triage | Break-fix drills on kind (8 scenarios, parallel): fault → triage must detect → fix → verify recovery; uploads debug bundles |
+| `repo-health` | weekly + on demand | Broken doc links, chart/image version drift, exercise board |
+| `e2e` (on failure) | — | Uploads a triage bundle artifact |
+
 ## The e2e smoke tests
 
 | Test | Promise |

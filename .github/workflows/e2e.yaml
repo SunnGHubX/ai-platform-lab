@@ -4,6 +4,7 @@
 name: e2e
 
 on:
+  workflow_call:
   pull_request:
     paths:
       - "platform/**"
@@ -62,7 +63,16 @@ jobs:
       - name: run e2e
         env:
           JUNIT_XML: ${{ runner.temp }}/e2e-junit.xml
+          BUNDLE_DIR: ${{ runner.temp }}/triage-bundle
         run: ./tests/e2e/run.sh
+
+      - name: upload triage bundle (on failure)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-triage-bundle
+          path: ${{ runner.temp }}/triage-bundle
+          if-no-files-found: ignore
 
       - name: test report
         if: always()

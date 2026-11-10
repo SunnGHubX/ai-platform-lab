@@ -1,9 +1,12 @@
 SHELL := /usr/bin/env bash
+# Tools installed by `make prereqs-install` live in ./.bin and win over system versions.
+export PATH := $(CURDIR)/.bin:$(PATH)
+PROFILE ?= lab
 CLUSTER ?= sunn-platform-lab
 
 
 
-.PHONY: exercise exercises e2e test-exercises test test-terraform test-policy test-slo test-network test-gateway help set-repo cluster bootstrap inference argocd-password argocd-ui grafana-ui mlflow-ui vllm-api lint teardown
+.PHONY: prereqs prereqs-install up down aws-bootstrap aws-teardown drill triage doctor health exercise exercises e2e test-exercises test test-terraform test-policy test-slo test-network test-gateway help set-repo cluster bootstrap inference argocd-password argocd-ui grafana-ui mlflow-ui vllm-api lint teardown
 
 help: ## Show targets
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "  \033[36m%-16s\033[0m %s\n",$$1,$$2}'
@@ -45,7 +48,7 @@ lint: ## yamllint + kustomize build of every platform dir
 teardown: ## Delete the kind cluster
 	kind delete cluster --name $(CLUSTER)
 
-test: test-terraform test-policy test-slo test-network test-gateway test-exercises ## Run every test suite (needs terraform + docker)
+test: test-terraform test-policy test-slo test-network test-gateway test-exercises test-tooling ## Run every test suite (needs terraform + docker)
 
 test-terraform: ## terraform test with mocked AWS
 	$(MAKE) -C terraform test
@@ -58,6 +61,9 @@ test-slo: ## promtool alert unit tests (every file)
 
 test-network: ## netgen unit + golden tests
 	cd network && pytest -q
+
+test-tooling: ## triage, drills, ci-doctor, health unit tests
+	for d in scripts/triage tests/drills .github/scripts scripts/health; do (cd $$d && pytest -q -p no:cacheprovider) || exit 1; done
 
 test-exercises: ## exercise checker unit tests
 	cd study/checks && pytest -q -p no:cacheprovider
@@ -74,3 +80,39 @@ exercise: ## Check one exercise: make exercise EX=06
 
 e2e: ## Full end-to-end test in a local kind cluster (needs docker, kind, kubectl, helm)
 	./tests/e2e/run.sh
+
+drill: ## Break-fix drill on kind: make drill SCENARIO=oom [PRACTICE=1]
+	@test -n "$(SCENARIO)" || (echo "usage: make drill SCENARIO=<$$(python3 -c 'import yaml;print("|".join(yaml.safe_load(open("tests/drills/scenarios.yaml"))))')>" && exit 1)
+	./tests/drills/run_drill.sh $(SCENARIO) $(if $(PRACTICE),--no-reveal,)
+
+triage: ## Debug bundle + root-cause findings for the CURRENT kube context: make triage [PROM=http://localhost:9090]
+	python3 scripts/triage/triage.py --out triage-bundle-$$(date +%Y%m%d-%H%M%S) $(if $(PROM),--prom-url $(PROM),)
+
+doctor: ## Explain a failed CI run: make doctor RUN=<run id>
+	python3 .github/scripts/ci_doctor.py --repo SunnGHubX/sunn-platform-lab --run-id $(RUN)
+
+health: ## Doc links + version drift report
+	python3 scripts/health/check_links.py . && python3 scripts/health/version_drift.py
+
+# ---------------------------------------------------------------- bootstrap
+prereqs: ## Check tools/Docker/ports for a profile: make prereqs [PROFILE=lab|iac|aws|all]
+	python3 scripts/bootstrap/prereqs.py --profile $(PROFILE)
+
+prereqs-install: ## Install missing tools (pinned in mise.toml, checksum-verified) into ./.bin
+	python3 scripts/bootstrap/prereqs.py --profile $(PROFILE) --install
+
+up: ## Local platform from zero, idempotent: prereqs -> kind -> Argo CD -> healthy  [INFERENCE=1] [UP_INSTALL=1]
+	./scripts/bootstrap/up.sh
+
+down: ## Delete the local kind cluster
+	kind delete cluster --name $(CLUSTER)
+
+aws-bootstrap: ## Bootstrap an AWS env: make aws-bootstrap ENV=dev ACCOUNT_ID=123456789012 [REGION=us-west-2] [APPLY=1] [DRY_RUN=1]
+	@test -n "$(ENV)" -a -n "$(ACCOUNT_ID)" || (echo "usage: make aws-bootstrap ENV=dev ACCOUNT_ID=123456789012 [REGION=us-west-2] [APPLY=1] [DRY_RUN=1]" && exit 1)
+	python3 scripts/bootstrap/aws_bootstrap.py --env $(ENV) --account-id $(ACCOUNT_ID) $(if $(REGION),--region $(REGION),) $(if $(APPLY),--apply,) $(if $(DRY_RUN),--dry-run,)
+
+aws-teardown: ## Destroy an env's stacks in reverse order (services -> eks -> network); never prod, keeps the state bucket
+	@test -n "$(ENV)" || (echo "usage: make aws-teardown ENV=dev" && exit 1)
+	@test "$(ENV)" != "prod" || (echo "refusing to tear down prod from a laptop" && exit 1)
+	for s in services eks network; do $(MAKE) -C terraform destroy ENV=$(ENV) STACK=$$s || exit 1; done
+	@echo "Stacks destroyed. The state bucket + CI roles (envs/_global/bootstrap) are kept on purpose."

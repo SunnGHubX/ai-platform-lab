@@ -1,0 +1,101 @@
+# Break-fix drills: inject real faults into the platform on kind and prove the triage tooling
+# detects them, the fix restores service, and the debug bundle has what an on-call engineer needs.
+#   Actions → troubleshoot → Run workflow → pick a scenario (or "all"); tick "practice" to hide the answer.
+# Each scenario runs on its own runner in parallel; download the triage bundle artifact to investigate.
+name: troubleshoot
+
+on:
+  workflow_call:
+    inputs:
+      scenario:
+        type: string
+        default: all
+      practice:
+        type: boolean
+        default: false
+  workflow_dispatch:
+    inputs:
+      scenario:
+        description: Drill to run
+        type: choice
+        default: all
+        options: [all, oom, image-pull, gpu-pending, selector-mismatch, netpol-dns, keda-broken, probe-failure, slo-burn]
+      practice:
+        description: Practice mode (hide root cause; investigate the bundle yourself first)
+        type: boolean
+        default: false
+  schedule:
+    - cron: "41 11 * * 0"   # weekly: the troubleshooting tooling must keep working as charts/images drift
+  pull_request:
+    paths:
+      - "tests/drills/**"
+      - "scripts/triage/**"
+      - ".github/workflows/troubleshoot.yaml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: troubleshoot-${{ github.ref }}-${{ inputs.scenario || 'all' }}
+  cancel-in-progress: true
+
+jobs:
+  plan:
+    name: pick drills
+    runs-on: ubuntu-latest
+    outputs:
+      scenarios: ${{ steps.pick.outputs.scenarios }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: pick
+        env:
+          CHOICE: ${{ inputs.scenario || 'all' }}
+        run: |
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import json, os, yaml
+          names = sorted(yaml.safe_load(open("tests/drills/scenarios.yaml")))
+          choice = os.environ["CHOICE"]
+          print("scenarios=" + json.dumps(names if choice == "all" else [choice]))
+          PY
+
+  drill:
+    name: drill ${{ matrix.scenario }}
+    needs: plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        scenario: ${{ fromJSON(needs.plan.outputs.scenarios) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install pyyaml pytest -r labs/04-mlflow/requirements.txt -r labs/06-opentelemetry/requirements.txt
+
+      - name: ensure kind is installed (verified release binary)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if ! command -v kind >/dev/null; then
+            cd "$RUNNER_TEMP"
+            gh release download --repo kubernetes-sigs/kind --pattern 'kind-linux-amd64' --pattern 'kind-linux-amd64.sha256sum'
+            sha256sum --check kind-linux-amd64.sha256sum
+            sudo install -m 0755 kind-linux-amd64 /usr/local/bin/kind
+          fi
+
+      - name: run drill
+        env:
+          SCENARIO: ${{ matrix.scenario }}
+          PRACTICE: ${{ inputs.practice && '--no-reveal' || '' }}
+          BUNDLE_DIR: ${{ runner.temp }}/bundle
+        run: ./tests/drills/run_drill.sh "$SCENARIO" $PRACTICE
+
+      - name: upload debug bundle
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: triage-bundle-${{ matrix.scenario }}
+          path: ${{ runner.temp }}/bundle
+          if-no-files-found: ignore
