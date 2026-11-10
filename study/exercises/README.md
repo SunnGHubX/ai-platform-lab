@@ -24,3 +24,23 @@ Work on a branch named `ex/NN-<anything>` and push: the `exercise` workflow runs
 | 11 | [EVPN-VXLAN overlay templates](11-network-evpn-vxlan.md) | Network | ★★★★ |
 | 12 | [Share GPUs: MIG and time-slicing with the GPU Operator](12-gpu-sharing.md) | GPU / K8s | ★★★ |
 | 13 | [Troubleshooting drills (interview-style)](13-troubleshooting-drills.md) | All | ★★ → ★★★★ |
+
+## Security track: zero trust, least privilege, RBAC, no exposed secrets
+
+Common scenarios (★–★★) are what you'll do in week one of a platform/security role; complex ones (★★★–★★★★) are senior/staff interview material. Modules build on each other: **14 → 15 → 22**, **16 → 23**, **20 → 21 → 25**.
+
+| # | Exercise | Theme | Level |
+|---|---|---|---|
+| 14 | [Custom module: `kms-key` with a least-privilege key policy](14-tf-module-kms-key.md) | Terraform module · encryption | ★ |
+| 15 | [Custom module: `secure-bucket` with a data perimeter](15-tf-module-secure-bucket.md) | Terraform module · zero trust for data | ★★ |
+| 16 | [Permissions boundaries + replace the admin CI role](16-tf-permissions-boundary.md) | Least privilege · IAM escalation | ★★★ |
+| 17 | [No secrets in Terraform state or tfvars](17-tf-no-secrets-in-state.md) | Secrets · ephemeral / write-only | ★★ |
+| 18 | [No Secret manifests in Git: External Secrets Operator](18-k8s-external-secrets.md) | Secrets · Kubernetes | ★★ |
+| 19 | [Kubernetes RBAC least privilege + EKS access entries](19-k8s-rbac-least-privilege.md) | RBAC | ★★ |
+| 20 | [Zero-trust networking: default-deny everywhere](20-zero-trust-network-policies.md) | Zero trust · proven on kind | ★★★ |
+| 21 | [Workload identity + mTLS: authorize by *who*, not *where*](21-zero-trust-mtls-identity.md) | Zero trust · SPIFFE | ★★★★ |
+| 22 | [Custom module: `security-baseline` for every AWS account](22-tf-security-baseline-module.md) | Terraform module · detective controls | ★★★ |
+| 23 | [Organization guardrails: SCPs as code](23-tf-org-guardrails-scp.md) | Least privilege at org scale | ★★★ |
+| 24 | [Least-privilege CI: harden every GitHub Actions workflow](24-ci-supply-chain-least-privilege.md) | Supply chain | ★★ |
+| 25 | [Red-team: "the gateway pod is compromised"](25-red-team-compromised-pod.md) | Capstone · assume breach | ★★★★ |
+| 26 | [Incident drill: an AWS key leaked in a public commit](26-incident-leaked-credentials.md) | Incident response | ★★ |

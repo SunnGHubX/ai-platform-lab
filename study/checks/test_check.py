@@ -53,7 +53,7 @@ def test_missing_tool_skips_locally_but_fails_in_strict_mode(repo):
 
 def test_spec_is_well_formed():
     spec = load_spec()
-    assert sorted(spec) == [f"{i:02d}" for i in range(1, 14)]
+    assert sorted(spec) == [f"{i:02d}" for i in range(1, len(spec) + 1)], "exercise ids must be consecutive"
     for ex_id, ex in spec.items():
         assert ex["title"] and ex["checks"], ex_id
         for c in ex["checks"]:
@@ -79,8 +79,42 @@ def test_fresh_repo_has_no_exercise_completed():
 def test_branch_name_resolves_to_exercise(capsys):
     assert check.main(["ex/99-nope"]) == 2
     assert check.main(["ex/13-drills", "--quick"]) == 1  # unsolved -> non-zero
+    assert check.main(["ex/25-red-team", "--quick"]) == 1
 
 
 def test_yaml_anchors_not_treated_as_exercises():
     raw = yaml.safe_load(check.SPEC.read_text())
     assert "x-commands" in raw and "x-commands" not in load_spec()
+
+
+def _check(ex_id: str, name_fragment: str) -> dict:
+    return next(c for c in load_spec()[ex_id]["checks"] if name_fragment in c["name"])
+
+
+@pytest.mark.parametrize(
+    ("line", "flagged"),
+    [
+        ("      - uses: hashicorp/setup-terraform@v3", True),
+        ("      - uses: sigstore/cosign-installer@main", True),
+        ("      - uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3.1.2", False),
+        ("      - uses: actions/checkout@v4", False),  # first-party allowed by the exercise
+        ("      - uses: github/codeql-action/init@v3", False),
+        ("      - uses: ./.github/actions/local", False),
+    ],
+)
+def test_ex24_sha_pinning_regex(tmp_path, line, flagged):
+    wf = tmp_path / ".github" / "workflows"
+    wf.mkdir(parents=True)
+    (wf / "x.yaml").write_text(f"jobs:\n  a:\n    steps:\n{line}\n")
+    result = run_check(_check("24", "pinned"), root=tmp_path)
+    assert (result.status == FAIL) is flagged
+
+
+def test_ex18_secret_manifest_regex_ignores_externalsecret(tmp_path):
+    (tmp_path / "platform" / "x").mkdir(parents=True)
+    f = tmp_path / "platform" / "x" / "a.yaml"
+    c = _check("18", "no Secret manifests")
+    f.write_text("kind: ExternalSecret\n---\nkind: SecretStore\n")
+    assert run_check(c, root=tmp_path).status == PASS
+    f.write_text("apiVersion: v1\nkind: Secret\n")
+    assert run_check(c, root=tmp_path).status == FAIL

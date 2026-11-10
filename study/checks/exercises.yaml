@@ -26,6 +26,17 @@ x-commands:
     name: generated platform/slo is up to date
     run: python3 sre/slo/build.py && git diff --exit-code platform/slo
     needs: [git]
+  conftest_platform: &conftest_platform
+    name: every platform component passes the policies
+    run: >-
+      for d in platform/*/; do [ -f "$d/kustomization.yaml" ] || continue;
+      kubectl kustomize "$d" | docker run --rm -i -v "$PWD:/p" -w /p openpolicyagent/conftest:latest test --policy policy/kubernetes --all-namespaces - || exit 1; done
+    needs: [docker, kubectl]
+  e2e: &e2e
+    name: e2e on kind passes (make e2e)
+    run: ./tests/e2e/run.sh
+    needs: [docker, kind, kubectl, helm]
+    timeout: 2700
   netgen: &netgen
     name: netgen tests pass
     run: cd network && python3 -m pytest -q -p no:cacheprovider
@@ -238,3 +249,251 @@ x-commands:
       file: study/notes/13-troubleshooting.md
     - name: all seven drills answered (### A ... ### G)
       grep: { path: study/notes/13-troubleshooting.md, pattern: '^###\s+[A-G]\b', min: 7 }
+
+# =====================================================================================
+# Security track: custom Terraform security modules, zero trust, least privilege, RBAC, secrets
+# =====================================================================================
+"14":
+  title: "Custom module: kms-key with a least-privilege key policy"
+  checks:
+    - name: module exists
+      file: terraform/modules/kms-key/main.tf
+    - name: admin / usage / service-principal inputs
+      grep: { path: terraform/modules/kms-key/variables.tf, pattern: 'variable "(admin_role_arns|usage_role_arns|service_principals)"', min: 3 }
+    - name: rotation always on
+      grep: { path: terraform/modules/kms-key/*.tf, pattern: 'enable_key_rotation\s*=\s*true' }
+    - name: confused-deputy protection for service principals
+      grep: { path: terraform/modules/kms-key/*.tf, pattern: 'aws:SourceAccount' }
+    - name: at least 5 test runs
+      grep: { path: terraform/modules/kms-key/tests/*.tftest.hcl, pattern: '^run "', min: 5 }
+    - name: state-backend uses the module
+      grep: { path: terraform/modules/state-backend/main.tf, pattern: 'module "kms"' }
+    - name: no inline aws_kms_key left in state-backend
+      absent: { path: terraform/modules/state-backend/main.tf, pattern: 'resource "aws_kms_key"' }
+    - *tf_validate
+    - *tf_test
+
+"15":
+  title: "Custom module: secure-bucket with a data perimeter"
+  checks:
+    - name: module exists
+      file: terraform/modules/secure-bucket/main.tf
+    - name: deny non-TLS
+      grep: { path: terraform/modules/secure-bucket/*.tf, pattern: 'aws:SecureTransport' }
+    - name: deny wrong / missing KMS key on upload
+      grep: { path: terraform/modules/secure-bucket/*.tf, pattern: 'x-amz-server-side-encryption-aws-kms-key-id' }
+    - name: network perimeter via VPC endpoint
+      grep: { path: terraform/modules/secure-bucket/*.tf, pattern: 'aws:SourceVpce' }
+    - name: break-glass exception
+      grep: { path: terraform/modules/secure-bucket/*.tf, pattern: 'aws:PrincipalTag/break-glass' }
+    - name: at least 5 test runs
+      grep: { path: terraform/modules/secure-bucket/tests/*.tftest.hcl, pattern: '^run "', min: 5 }
+    - name: microservice no longer has inline buckets
+      absent: { path: terraform/modules/microservice/main.tf, pattern: 'resource "aws_s3_bucket"' }
+    - name: network stack publishes the S3 endpoint id
+      grep: { path: terraform/stacks/network/main.tf, pattern: 's3_vpce_id' }
+    - *tf_validate
+    - *tf_test
+
+"16":
+  title: Permissions boundaries + replace the admin CI role
+  checks:
+    - name: boundary module exists
+      file: terraform/modules/permissions-boundary/main.tf
+    - name: escalation prevention (roles must carry the boundary)
+      grep: { path: terraform/modules/permissions-boundary/*.tf, pattern: 'iam:PermissionsBoundary' }
+    - name: region lock
+      grep: { path: terraform/modules/permissions-boundary/*.tf, pattern: 'aws:RequestedRegion' }
+    - name: AdministratorAccess removed everywhere
+      absent: { path: terraform/**/*.tf, pattern: 'AdministratorAccess' }
+    - name: microservice roles are bounded
+      grep: { path: terraform/modules/microservice/main.tf, pattern: 'permissions_boundary\s*=' }
+    - name: eks-cluster roles are bounded
+      grep: { path: terraform/modules/eks-cluster/main.tf, pattern: 'permissions_boundary\s*=' }
+    - name: services stack (KEDA) role is bounded
+      grep: { path: terraform/stacks/services/main.tf, pattern: 'permissions_boundary\s*=' }
+    - name: SECURITY.md caveat resolved
+      absent: { path: SECURITY.md, pattern: '(?m)^## Scope note' }
+    - *tf_validate
+    - *tf_test
+
+"17":
+  title: No secrets in Terraform state or tfvars
+  checks:
+    - name: ephemeral password generation
+      grep: { path: terraform/**/*.tf, pattern: 'ephemeral\s+"random_password"' }
+    - name: write-only arguments used
+      grep: { path: terraform/**/*.tf, pattern: '_wo(_version)?\s*=', min: 2 }
+    - name: no stateful random_password
+      absent: { path: terraform/**/*.tf, pattern: 'resource\s+"random_password"' }
+    - name: secret-leak guard test
+      file: terraform/tests/test_no_secrets.py
+    - name: guard runs in CI
+      grep: { path: .github/workflows/validate.yaml, pattern: 'test_no_secrets' }
+    - name: guard test passes
+      run: python3 -m pytest -q -p no:cacheprovider terraform/tests/test_no_secrets.py
+      needs: [python3]
+    - *tf_test
+
+"18":
+  title: "No Secret manifests in Git: External Secrets Operator"
+  checks:
+    - name: ESO Argo CD app
+      file: gitops/apps/external-secrets.yaml
+    - name: ExternalSecret for the gateway
+      grep: { path: platform/inference-gateway/*.yaml, pattern: 'kind:\s*ExternalSecret' }
+    - name: namespaced SecretStore (not ClusterSecretStore)
+      grep: { path: platform/inference-gateway/*.yaml, pattern: '(?m)^kind:\s*SecretStore\s*$' }
+    - name: no Secret manifests under platform/
+      absent: { path: platform/**/*.yaml, pattern: '(?m)^kind:\s*Secret\s*$' }
+    - name: Rego rule denies Secret manifests
+      grep: { path: policy/kubernetes/*.rego, pattern: 'input\.kind\s*==\s*"Secret"' }
+    - name: at least 2 tests for it
+      grep: { path: policy/kubernetes/*_test.rego, pattern: '(?im)^test_\w*secret\w* if', min: 2 }
+    - *conftest_verify
+    - *conftest_platform
+
+"19":
+  title: Kubernetes RBAC least privilege + EKS access entries
+  checks:
+    - name: RBAC kustomization
+      file: platform/rbac/kustomization.yaml
+    - name: ml-engineers group bound
+      grep: { path: platform/rbac/*.yaml, pattern: 'ml-engineers' }
+    - name: oncall group bound
+      grep: { path: platform/rbac/*.yaml, pattern: 'oncall' }
+    - name: impersonation verification matrix (>= 6 checks)
+      grep: { path: platform/rbac/verify.sh, pattern: 'auth can-i', min: 6 }
+    - name: Rego blocks bindings to system:authenticated
+      grep: { path: policy/kubernetes/*.rego, pattern: 'system:authenticated' }
+    - name: at least 4 RBAC Rego tests
+      grep: { path: policy/kubernetes/*_test.rego, pattern: '(?im)^test_\w*(rbac|role|binding|wildcard)\w* if', min: 4 }
+    - name: access_groups input on the EKS module
+      grep: { path: terraform/modules/eks-cluster/variables.tf, pattern: 'variable "access_groups"' }
+    - name: RBAC manifests build
+      run: kubectl kustomize platform/rbac > /dev/null
+      needs: [kubectl]
+    - *conftest_verify
+    - *conftest_platform
+
+"20":
+  title: "Zero-trust networking: default-deny everywhere"
+  checks:
+    - name: default-deny in >= 3 workload namespaces
+      grep: { path: platform/*/networkpolicy-default-deny.yaml, pattern: 'podSelector:\s*\{\}', min: 3 }
+    - name: Rego rule requires default-deny per namespace
+      grep: { path: policy/kubernetes/*.rego, pattern: '(?i)networkpolicy' }
+    - name: e2e proves vLLM is unreachable from mlops
+      grep: { path: tests/e2e/smoke_test.py, pattern: 'def test_zero_trust_vllm_unreachable_from_mlops' }
+    - name: e2e proves the legitimate path still works
+      grep: { path: tests/e2e/smoke_test.py, pattern: 'def test_zero_trust_gateway_path_still_works' }
+    - *conftest_verify
+    - *conftest_platform
+    - *e2e
+
+"21":
+  title: "Workload identity + mTLS: authorize by who, not where"
+  checks:
+    - name: mesh installed via Argo CD
+      grep: { path: gitops/**/*.yaml, pattern: '(?i)istio|linkerd' }
+    - name: ADR-0004 (mesh choice)
+      file: docs/adr/0004-*.md
+    - name: STRICT mTLS
+      grep: { path: platform/**/*.yaml, pattern: '(?i)mode:\s*STRICT|all-authenticated' }
+    - name: authorization by SPIFFE identity of the gateway
+      grep: { path: platform/**/*.yaml, pattern: 'cluster\.local/ns/inference/sa/inference-gateway' }
+    - name: authorization policy resource
+      grep: { path: platform/**/*.yaml, pattern: 'kind:\s*(AuthorizationPolicy|ServerAuthorization|AuthorizationPolicy|MeshTLSAuthentication)' }
+
+"22":
+  title: "Custom module: security-baseline for every AWS account"
+  checks:
+    - name: module exists
+      file: terraform/modules/security-baseline/main.tf
+    - name: CloudTrail with log file validation
+      grep: { path: terraform/modules/security-baseline/*.tf, pattern: 'enable_log_file_validation\s*=\s*true' }
+    - name: multi-region trail
+      grep: { path: terraform/modules/security-baseline/*.tf, pattern: 'is_multi_region_trail\s*=\s*true' }
+    - name: GuardDuty
+      grep: { path: terraform/modules/security-baseline/*.tf, pattern: 'resource "aws_guardduty_detector"' }
+    - name: Security Hub
+      grep: { path: terraform/modules/security-baseline/*.tf, pattern: 'resource "aws_securityhub_account"' }
+    - name: AWS Config recorder
+      grep: { path: terraform/modules/security-baseline/*.tf, pattern: 'resource "aws_config_configuration_recorder"' }
+    - name: IAM Access Analyzer
+      grep: { path: terraform/modules/security-baseline/*.tf, pattern: 'resource "aws_accessanalyzer_analyzer"' }
+    - name: secure defaults (EBS encryption, S3 account public access block, password policy)
+      grep: { path: terraform/modules/security-baseline/*.tf, pattern: 'resource "(aws_ebs_encryption_by_default|aws_s3_account_public_access_block|aws_iam_account_password_policy)"', min: 3 }
+    - name: alerting on high-severity findings and root usage
+      grep: { path: terraform/modules/security-baseline/*.tf, pattern: 'resource "aws_cloudwatch_event_rule"', min: 2 }
+    - name: tests assert every control (>= 8 asserts)
+      grep: { path: terraform/modules/security-baseline/tests/*.tftest.hcl, pattern: '^\s*assert\s*\{', min: 8 }
+    - name: wired into account bootstrap
+      grep: { path: terraform/envs/_global/bootstrap/main.tf, pattern: 'module "security_baseline"' }
+    - *tf_validate
+    - *tf_test
+
+"23":
+  title: "Organization guardrails: SCPs as code"
+  checks:
+    - name: module exists
+      file: terraform/modules/org-guardrails/main.tf
+    - name: all six guardrail statements
+      grep: { path: terraform/modules/org-guardrails/*.tf, pattern: '(DenyLeaveOrganization|DenyDisableSecurityServices|DenyRootUser|RegionAllowList|RequireIMDSv2|ProtectSecurityRoles)', min: 6 }
+    - name: attached to OUs
+      grep: { path: terraform/modules/org-guardrails/*.tf, pattern: 'resource "aws_organizations_policy_attachment"' }
+    - name: tests guard the 5120-char SCP size limit
+      grep: { path: terraform/modules/org-guardrails/tests/*.tftest.hcl, pattern: '5120' }
+    - name: organization root module
+      file: terraform/envs/_global/organization/main.tf
+    - *tf_validate
+    - *tf_test
+
+"24":
+  title: "Least-privilege CI: harden every GitHub Actions workflow"
+  checks:
+    - name: workflow policy test
+      file: tests/ci/test_workflows.py
+    - name: runs in CI
+      grep: { path: .github/workflows/validate.yaml, pattern: 'test_workflows' }
+    - name: third-party actions pinned to full commit SHAs
+      absent: { path: .github/workflows/*.yaml, pattern: 'uses:\s+(?!actions/|github/|\./)[^@\s]+@(?![0-9a-f]{40}\b)\S+' }
+    - name: no pull_request_target
+      absent: { path: .github/workflows/*.yaml, pattern: 'pull_request_target' }
+    - name: OIDC trust bound to the workflow file
+      grep: { path: terraform/envs/_global/bootstrap/main.tf, pattern: 'job_workflow_ref' }
+    - name: workflow policy test passes
+      run: python3 -m pytest -q -p no:cacheprovider tests/ci
+      needs: [python3]
+
+"25":
+  title: "Red-team scenario: the gateway pod is compromised"
+  checks:
+    - name: threat model
+      file: docs/threat-models/inference-gateway.md
+    - name: STRIDE analysis
+      grep: { path: docs/threat-models/inference-gateway.md, pattern: '(?i)stride' }
+    - name: data-flow diagram
+      grep: { path: docs/threat-models/inference-gateway.md, pattern: '```mermaid' }
+    - name: at least 5 attack simulations
+      grep: { path: tests/e2e/attack_test.py, pattern: 'def test_attack_\w+', min: 5 }
+    - name: attacks run as part of e2e
+      grep: { path: tests/e2e/run.sh, pattern: 'attack_test' }
+    - *e2e
+
+"26":
+  title: "Incident drill: an AWS access key leaked in a public commit"
+  checks:
+    - name: runbook
+      file: docs/runbooks/LeakedAWSCredentials.md
+    - name: session revocation via aws:TokenIssueTime
+      grep: { path: docs/runbooks/LeakedAWSCredentials.md, pattern: 'aws:TokenIssueTime' }
+    - name: contain / scope / eradicate / recover sections
+      grep: { path: docs/runbooks/LeakedAWSCredentials.md, pattern: '(?im)^#+.*\b(contain|scope|eradicat\w*|recover)', min: 4 }
+    - name: revoke-sessions module
+      file: terraform/modules/revoke-sessions/main.tf
+    - name: revoke-sessions tested
+      grep: { path: terraform/modules/revoke-sessions/tests/*.tftest.hcl, pattern: '^run "' }
+    - name: postmortem removes long-lived keys
+      grep: { path: docs/postmortems/*.md, pattern: '(?i)long-lived|access key' }
+    - *tf_test

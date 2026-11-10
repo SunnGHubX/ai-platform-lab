@@ -26,6 +26,19 @@ You already have the hard-to-teach parts: 14 years of infra and IaC, a decade of
 | 7 | Reliability under failure | Lab 10, ex. 07, 13 | Game day run, postmortem written from the template |
 | 8 | Interview sprint | `study/interview/` | Two mock system-design sessions recorded and reviewed |
 
+## Security track (weeks 9–14, after the core plan)
+
+| Week | Focus | Exercises | Done when |
+|---|---|---|---|
+| 9 | Encryption & data perimeter modules | 14, 15 | Buckets are only reachable from the VPC endpoint by named roles, with your CMK |
+| 10 | Secrets never exposed | 17, 18, 26 | A planted secret fails CI; the leak drill runbook works end to end |
+| 11 | Least privilege, IAM and K8s | 16, 19 | No `AdministratorAccess`; `kubectl auth can-i` matrix passes |
+| 12 | Zero trust in the cluster | 20, 21 | Default-deny proven by e2e; vLLM accepts only the gateway's SPIFFE identity |
+| 13 | Account & org guardrails | 22, 23, 24 | Every account has the baseline; SCPs tested; CI actions SHA-pinned |
+| 14 | Capstone | 25 | Five attack simulations from a "compromised" pod all fail in e2e |
+
+Your edge here: a decade of hands-on security (Fortinet, segmentation, firewall policy) maps directly onto zero trust (default-deny, identity-based policy), data perimeters, and SCP "ceilings". Use that vocabulary in interviews.
+
 ## How to work each exercise
 
 1. Branch: `git checkout -b ex/NN-short-name`.
