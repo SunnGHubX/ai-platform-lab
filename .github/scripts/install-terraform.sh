@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Install Terraform from releases.hashicorp.com with checksum verification (no third-party Action).
 set -euo pipefail
-v="${TERRAFORM_VERSION:-$(curl -fsSL https://checkpoint-api.hashicorp.com/v1/check/terraform | python3 -c 'import json,sys;print(json.load(sys.stdin)["current_version"])')}"
+# Version comes from mise.toml (single source of truth), overridable for experiments.
+v="${TERRAFORM_VERSION:-$(python3 -c 'import tomllib;print(tomllib.load(open("mise.toml","rb"))["tools"]["terraform"])')}"
 tmp="$(mktemp -d)"; cd "$tmp"
 curl -fsSLO "https://releases.hashicorp.com/terraform/${v}/terraform_${v}_linux_amd64.zip"
 curl -fsSLO "https://releases.hashicorp.com/terraform/${v}/terraform_${v}_SHA256SUMS"

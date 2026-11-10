@@ -87,13 +87,11 @@ terraform/
 ## Usage
 
 ```bash
-# 0. Once per account (local state; it creates the state bucket and CI roles)
-cd envs/_global/bootstrap
-terraform init && terraform apply -var environment=dev -var account_id=111111111111
-#    -> copy state_bucket into envs/dev/backend.hcl, role ARNs into GitHub repo variables
+# 0. Once per account, from the repo root: preflight (right account?), state bucket + KMS + GitHub OIDC
+#    roles, migrate the bootstrap's own state INTO that bucket, write envs/dev/*, set GitHub variables.
+make aws-bootstrap ENV=dev ACCOUNT_ID=123456789012 [REGION=us-west-2] [DRY_RUN=1]
 
 # 1. Everything for an environment, in dependency order
-cd ../../..
 make plan-all  ENV=dev
 make apply-all ENV=dev
 
@@ -110,7 +108,7 @@ aws eks update-kubeconfig --region us-west-2 --name ai-platform-dev
 cd .. && make bootstrap     # repo root: installs Argo CD + app-of-apps
 ```
 
-Before a real apply, replace the placeholder account IDs (`111111111111` …) and the `203.0.113.x` CIDRs in `envs/`.
+`make aws-bootstrap` replaces the placeholder account IDs (`111111111111` …) and region for you. Still set the `203.0.113.x` API-access CIDRs in `envs/<env>/eks.tfvars` to your own IP/VPN.
 
 ## Cost warning
 

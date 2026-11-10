@@ -96,3 +96,19 @@ def test_shellcheck_findings_from_real_run():
            "                                                 ^-- SC2015 (info): Note that A && B || C is not if-then-else.\n")
     d = classify("tooling", log)
     assert rule_ids(d) == ["shellcheck"] and d.matches[0][1][0].startswith("SC2015 (info)")
+
+
+def test_devcontainer_feature_failure_from_real_run():
+    log = ("#16 0.136 (!) The 'moby' option is not supported on debian 'trixie'\n"
+           '#16 0.137 ERROR: Feature "Docker (Docker-in-Docker)" (ghcr.io/devcontainers/features/docker-in-docker) failed to install!\n'
+           "[2026-11-09T23:33:06.662Z] ERROR: failed to build: failed to solve: process did not complete\n"
+           "Error: Command failed: docker buildx build --load\n")
+    ids_ = rule_ids(classify("devcontainer", log))
+    assert "devcontainer-feature" in ids_ and "docker-build" in ids_
+    assert "terraform-validate" not in ids_  # plain "Error:" is not a Terraform error
+
+
+def test_boxed_terraform_error_from_real_run():
+    log = "\x1b[31m│\x1b[0m \x1b[0m\x1b[1m\x1b[31mError: \x1b[0m\x1b[0m\x1b[1mattaching IAM Policy (arn:aws:iam::aws:policy/ReadOnlyAccess)\n"
+    d = classify("aws", log)
+    assert rule_ids(d) == ["terraform-validate"] and d.matches[0][1][0].startswith("attaching IAM Policy")

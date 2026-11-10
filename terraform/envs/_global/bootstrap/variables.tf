@@ -30,3 +30,9 @@ variable "github_repository" {
   type        = string
   default     = "SunnGHubX/sunn-platform-lab"
 }
+
+variable "enforce_tls_policy" {
+  description = "Keep true. Only the CI emulator test (moto, which ignores policy conditions) sets false."
+  type        = bool
+  default     = true
+}

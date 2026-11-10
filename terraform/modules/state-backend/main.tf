@@ -70,6 +70,8 @@ resource "aws_s3_bucket_lifecycle_configuration" "state" {
 }
 
 data "aws_iam_policy_document" "tls_only" {
+  count = var.enforce_tls_policy ? 1 : 0
+
   statement {
     sid     = "DenyInsecureTransport"
     effect  = "Deny"
@@ -91,6 +93,14 @@ data "aws_iam_policy_document" "tls_only" {
 }
 
 resource "aws_s3_bucket_policy" "state" {
+  count = var.enforce_tls_policy ? 1 : 0
+
   bucket = aws_s3_bucket.state.id
-  policy = data.aws_iam_policy_document.tls_only.json
+  policy = data.aws_iam_policy_document.tls_only[0].json
+}
+
+# The policy became conditional (count); keep existing state without a destroy/recreate.
+moved {
+  from = aws_s3_bucket_policy.state
+  to   = aws_s3_bucket_policy.state[0]
 }

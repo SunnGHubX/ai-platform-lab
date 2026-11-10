@@ -1,9 +1,12 @@
 SHELL := /usr/bin/env bash
+# Tools installed by `make prereqs-install` live in ./.bin and win over system versions.
+export PATH := $(CURDIR)/.bin:$(PATH)
+PROFILE ?= lab
 CLUSTER ?= sunn-platform-lab
 
 
 
-.PHONY: drill triage doctor health exercise exercises e2e test-exercises test test-terraform test-policy test-slo test-network test-gateway help set-repo cluster bootstrap inference argocd-password argocd-ui grafana-ui mlflow-ui vllm-api lint teardown
+.PHONY: prereqs prereqs-install up down aws-bootstrap aws-teardown drill triage doctor health exercise exercises e2e test-exercises test test-terraform test-policy test-slo test-network test-gateway help set-repo cluster bootstrap inference argocd-password argocd-ui grafana-ui mlflow-ui vllm-api lint teardown
 
 help: ## Show targets
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "  \033[36m%-16s\033[0m %s\n",$$1,$$2}'
@@ -90,3 +93,26 @@ doctor: ## Explain a failed CI run: make doctor RUN=<run id>
 
 health: ## Doc links + version drift report
 	python3 scripts/health/check_links.py . && python3 scripts/health/version_drift.py
+
+# ---------------------------------------------------------------- bootstrap
+prereqs: ## Check tools/Docker/ports for a profile: make prereqs [PROFILE=lab|iac|aws|all]
+	python3 scripts/bootstrap/prereqs.py --profile $(PROFILE)
+
+prereqs-install: ## Install missing tools (pinned in mise.toml, checksum-verified) into ./.bin
+	python3 scripts/bootstrap/prereqs.py --profile $(PROFILE) --install
+
+up: ## Local platform from zero, idempotent: prereqs -> kind -> Argo CD -> healthy  [INFERENCE=1] [UP_INSTALL=1]
+	./scripts/bootstrap/up.sh
+
+down: ## Delete the local kind cluster
+	kind delete cluster --name $(CLUSTER)
+
+aws-bootstrap: ## Bootstrap an AWS env: make aws-bootstrap ENV=dev ACCOUNT_ID=123456789012 [REGION=us-west-2] [APPLY=1] [DRY_RUN=1]
+	@test -n "$(ENV)" -a -n "$(ACCOUNT_ID)" || (echo "usage: make aws-bootstrap ENV=dev ACCOUNT_ID=123456789012 [REGION=us-west-2] [APPLY=1] [DRY_RUN=1]" && exit 1)
+	python3 scripts/bootstrap/aws_bootstrap.py --env $(ENV) --account-id $(ACCOUNT_ID) $(if $(REGION),--region $(REGION),) $(if $(APPLY),--apply,) $(if $(DRY_RUN),--dry-run,)
+
+aws-teardown: ## Destroy an env's stacks in reverse order (services -> eks -> network); never prod, keeps the state bucket
+	@test -n "$(ENV)" || (echo "usage: make aws-teardown ENV=dev" && exit 1)
+	@test "$(ENV)" != "prod" || (echo "refusing to tear down prod from a laptop" && exit 1)
+	for s in services eks network; do $(MAKE) -C terraform destroy ENV=$(ENV) STACK=$$s || exit 1; done
+	@echo "Stacks destroyed. The state bucket + CI roles (envs/_global/bootstrap) are kept on purpose."
