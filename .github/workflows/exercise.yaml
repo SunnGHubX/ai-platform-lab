@@ -23,8 +23,8 @@ jobs:
     name: exercise checker unit tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
       - run: pip install pytest pyyaml
@@ -35,7 +35,7 @@ jobs:
     needs: checker-selftest
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: which exercise?
         id: ex
@@ -50,7 +50,7 @@ jobs:
           echo "Exercise: $id"
 
       # Tools the `run` checks need. --strict makes a missing tool a failure, not a skip.
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
       - run: pip install pyyaml pytest jinja2

@@ -23,8 +23,8 @@ jobs:
       run:
         working-directory: services/inference-gateway
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
           cache: pip
@@ -44,7 +44,7 @@ jobs:
       id-token: write        # cosign keyless signing (main only)
       security-events: write # upload Trivy SARIF
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: build
         run: |
@@ -61,7 +61,7 @@ jobs:
 
       - name: upload scan to GitHub code scanning
         if: always() && hashFiles('trivy-image.sarif') != ''
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: trivy-image.sarif
           category: trivy-image
@@ -71,7 +71,7 @@ jobs:
           docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v "$PWD:/out" aquasec/trivy:latest \
             image --format cyclonedx --output /out/sbom.cdx.json "$IMAGE:$VERSION"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: inference-gateway-sbom
           path: sbom.cdx.json

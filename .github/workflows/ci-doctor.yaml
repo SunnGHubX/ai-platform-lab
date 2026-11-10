@@ -27,7 +27,7 @@ jobs:
     steps:
       # workflow_run always runs the default-branch version of this file + script (safe for fork PRs:
       # we only read logs and post text; nothing from the PR is executed).
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: diagnose
         env:
           GH_TOKEN: ${{ github.token }}

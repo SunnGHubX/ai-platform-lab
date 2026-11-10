@@ -17,7 +17,7 @@ jobs:
     name: secret scan (gitleaks, full history)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - run: |
@@ -31,12 +31,12 @@ jobs:
       contents: read
       security-events: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: trivy config scan (report to code scanning)
         run: |
           docker run --rm -v "$PWD:/repo" aquasec/trivy:latest config /repo \
             --severity HIGH,CRITICAL --format sarif --output /repo/trivy-config.sarif
-      - uses: github/codeql-action/upload-sarif@v3
+      - uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: trivy-config.sarif
           category: trivy-config
@@ -45,7 +45,7 @@ jobs:
     name: dependency vulnerabilities (trivy fs)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - run: |
           docker run --rm -v "$PWD:/repo" aquasec/trivy:latest fs /repo \
             --scanners vuln --severity CRITICAL --ignore-unfixed --exit-code 1
