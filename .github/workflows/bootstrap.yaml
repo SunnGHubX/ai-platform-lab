@@ -5,6 +5,7 @@
 name: bootstrap
 
 on:
+  workflow_call:
   pull_request:
     paths:
       - "scripts/bootstrap/**"

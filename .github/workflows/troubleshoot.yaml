@@ -5,6 +5,14 @@
 name: troubleshoot
 
 on:
+  workflow_call:
+    inputs:
+      scenario:
+        type: string
+        default: all
+      practice:
+        type: boolean
+        default: false
   workflow_dispatch:
     inputs:
       scenario:

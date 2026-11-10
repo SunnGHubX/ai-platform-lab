@@ -5,7 +5,7 @@ name: ci-doctor
 
 on:
   workflow_run:
-    workflows: [validate, e2e, security, inference-gateway, exercise, troubleshoot, codeql, run-tests, bootstrap]
+    workflows: [validate, e2e, security, inference-gateway, exercise, troubleshoot, codeql, run-tests, bootstrap, full-verification]
     types: [completed]
   workflow_dispatch:
     inputs:

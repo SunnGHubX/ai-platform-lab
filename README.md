@@ -67,7 +67,7 @@ More detail in [docs/architecture.md](docs/architecture.md).
 
 Run every suite: `make test` · end-to-end on kind: `make e2e` · exercise status: `make exercises`.
 
-**CI/CD** ([docs/ci-cd.md](docs/ci-cd.md)): every PR runs static validation, unit tests, policy and security scans; a **nightly e2e** stands the platform up on kind and runs 12 smoke tests; exercise branches (`ex/NN-*`) are graded automatically.
+**CI/CD** ([docs/ci-cd.md](docs/ci-cd.md)): **`full-verification`** runs every suite against `main` nightly (or on demand) and opens an issue if `main` breaks; every PR runs static validation, unit tests, policy and security scans; a **nightly e2e** stands the platform up on kind and runs 12 smoke tests; exercise branches (`ex/NN-*`) are graded automatically.
 
 **Troubleshooting** ([docs/troubleshooting.md](docs/troubleshooting.md)): `make triage` turns any cluster into a debug bundle with named root causes; **ci-doctor** explains every failed pipeline on the PR; **troubleshoot** runs break-fix drills (OOM, image pull, GPU pending, selector mismatch, NetworkPolicy DNS, KEDA, probes, SLO burn) on kind; **run-tests** reruns any suite with debug output.
 

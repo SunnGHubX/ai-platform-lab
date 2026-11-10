@@ -37,6 +37,10 @@ flowchart LR
 | `exercise` | branches `ex/NN-*`, PRs, on demand | That exercise's acceptance criteria (strict). On other PRs: status board of all exercises |
 | `terraform-plan` | PRs touching `terraform/` once AWS OIDC is set up | Real `terraform plan` per env × stack |
 
+### Full verification
+
+`full-verification` runs **every** suite against `main` (validate, security, gateway pipeline without publishing, e2e on kind, all 8 break-fix drills, bootstrap on Linux/macOS/kind/moto/devcontainer) **nightly** and on demand (Actions → full-verification → Run workflow). One summary table; a failing nightly opens a `🔴 main is unstable` issue that the next green run closes.
+
 ### Troubleshooting & debugging workflows ([docs/troubleshooting.md](troubleshooting.md))
 
 | Workflow | Runs on | Purpose |

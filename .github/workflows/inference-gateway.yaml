@@ -1,6 +1,7 @@
 name: inference-gateway
 
 on:
+  workflow_call:
   push:
     branches: [main]
     paths: ["services/inference-gateway/**", ".github/workflows/inference-gateway.yaml"]
@@ -77,11 +78,11 @@ jobs:
 
       # ---------------- release: main only ----------------
       - name: login to GHCR
-        if: github.ref == 'refs/heads/main'
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
 
       - name: push
-        if: github.ref == 'refs/heads/main'
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
         run: |
           docker push "$IMAGE:sha-${GITHUB_SHA::7}"
           docker push "$IMAGE:$VERSION"
@@ -100,7 +101,7 @@ jobs:
           cosign version
 
       - name: sign image + attest SBOM (keyless, GitHub OIDC)
-        if: github.ref == 'refs/heads/main'
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
         run: |
           cosign sign --yes "$DIGEST"
           cosign attest --yes --type cyclonedx --predicate sbom.cdx.json "$DIGEST"

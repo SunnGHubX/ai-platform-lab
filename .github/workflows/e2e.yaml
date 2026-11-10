@@ -4,6 +4,7 @@
 name: e2e
 
 on:
+  workflow_call:
   pull_request:
     paths:
       - "platform/**"
